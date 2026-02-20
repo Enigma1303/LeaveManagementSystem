@@ -5,7 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
 
-public class LeaveRequest {
+public class LeaveSubmitRequest {
 
     @NotNull(message = "Start date is required")
     private LocalDate startDate;
