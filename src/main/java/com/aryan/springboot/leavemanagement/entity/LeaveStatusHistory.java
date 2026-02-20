@@ -9,6 +9,8 @@ import java.time.LocalDateTime;
 @Table(name = "leave_status_history")
 public class LeaveStatusHistory {
 
+    public LeaveStatusHistory(){}
+
     public LeaveStatusHistory(@NotNull LeaveRequest leaveRequest, LeaveStatus oldStatus, @NotNull LeaveStatus newStatus,
             @NotNull Users createdBy, String comment) {
         this.leaveRequest = leaveRequest;

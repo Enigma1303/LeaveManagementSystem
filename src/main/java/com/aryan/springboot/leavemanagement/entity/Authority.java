@@ -16,7 +16,10 @@ import jakarta.validation.constraints.NotBlank;
 @Table(name="authority")
 
 public class Authority {
-    
+    public Authority()
+    {
+        
+    }
 
     public Authority(@NotBlank String name) {
         this.name = name;

@@ -13,7 +13,7 @@ import jakarta.persistence.*;
 @Table(name = "leave_request")
 public class LeaveRequest {
     
-
+    public LeaveRequest(){}
     public LeaveRequest(@NotNull Users employee, @NotNull LocalDate startDate, @NotNull LocalDate endDate,
             @NotNull String reason, SessionType startSession, SessionType endSession, LeaveStatus status) {
         this.employee = employee;
@@ -67,6 +67,17 @@ public class LeaveRequest {
 
     @OneToMany(mappedBy = "leaveRequest")
     private Set<LeaveStatusHistory> statusHistory = new HashSet<>();
+
+    @PrePersist
+protected void onCreate() {
+    this.createdAt = LocalDateTime.now();
+    this.status = LeaveStatus.PENDING;
+}
+
+@PreUpdate
+protected void onUpdate() {
+    this.updatedAt = LocalDateTime.now();
+}
 
     public Long getId() {
         return id;
