@@ -1,6 +1,7 @@
 package com.aryan.springboot.leavemanagement.controller;
 
 import com.aryan.springboot.leavemanagement.request.LeaveSubmitRequest;
+import com.aryan.springboot.leavemanagement.response.LeaveSubmitResponse;
 import com.aryan.springboot.leavemanagement.service.LeaveService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -20,7 +21,7 @@ public class LeaveController {
     }
 
     @PostMapping
-    public ResponseEntity<?> submitLeave(
+    public ResponseEntity<LeaveSubmitResponse> submitLeave(
             @Valid @RequestBody LeaveSubmitRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
 

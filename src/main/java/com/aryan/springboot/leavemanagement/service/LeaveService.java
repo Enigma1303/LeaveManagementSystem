@@ -1,8 +1,10 @@
 package com.aryan.springboot.leavemanagement.service;
 
 import com.aryan.springboot.leavemanagement.request.LeaveSubmitRequest;
-import java.util.Map;
+import com.aryan.springboot.leavemanagement.response.LeaveSubmitResponse;
+
+
 
 public interface LeaveService {
-    Map<String, Object> submitLeave(LeaveSubmitRequest request, String email);
+    LeaveSubmitResponse submitLeave(LeaveSubmitRequest request, String email);
 }

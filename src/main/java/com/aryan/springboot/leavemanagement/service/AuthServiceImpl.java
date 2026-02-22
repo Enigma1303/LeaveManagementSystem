@@ -6,6 +6,8 @@ import com.aryan.springboot.leavemanagement.repository.AuthorityRepository;
 import com.aryan.springboot.leavemanagement.repository.UserRepository;
 import com.aryan.springboot.leavemanagement.request.LoginRequest;
 import com.aryan.springboot.leavemanagement.request.RegisterRequest;
+import com.aryan.springboot.leavemanagement.response.LoginResponse;
+import com.aryan.springboot.leavemanagement.response.RegisterResponse;
 import com.aryan.springboot.leavemanagement.security.CustomUserDetails;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -13,7 +15,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -40,7 +41,7 @@ public class AuthServiceImpl implements AuthService {
 
     
     @Override
-public Object register(RegisterRequest request) {
+public RegisterResponse register(RegisterRequest request) {
     Set<Authority> roles = request.getRoles()
             .stream()
             .map(roleName -> authorityRepository.findByName(roleName)
@@ -62,16 +63,18 @@ public Object register(RegisterRequest request) {
 
     Users saved = userRepository.save(user);
 
-    return Map.of(
-        "id", saved.getId(),
-        "name", saved.getName(),
-        "email", saved.getEmail(),
-        "roles", roles.stream().map(Authority::getName).toList()
+    return new RegisterResponse(
+        saved.getId(),
+        saved.getName(),
+        saved.getEmail(),
+        saved.getManager() != null ? saved.getManager().getId() : null,
+        roles.stream().map(Authority::getName).toList(),
+        saved.getCreatedAt()
     );
 }
 
     @Override
-    public String login(LoginRequest request) {
+    public LoginResponse login(LoginRequest request) {
 
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
@@ -92,6 +95,8 @@ public Object register(RegisterRequest request) {
                 .map(Authority::getName)
                 .toList());
 
-        return jwtService.generateToken(claims, userDetails);
+        String token =jwtService.generateToken(claims, userDetails);
+        String role=user.getAuthorities().stream().map(Authority::getName).findFirst().orElse("Role Employee");
+        return  new LoginResponse(token,role);
     }
 }
