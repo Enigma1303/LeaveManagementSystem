@@ -13,6 +13,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.Set;
@@ -39,7 +40,7 @@ public class AuthServiceImpl implements AuthService {
         this.jwtService = jwtService;
     }
 
-    
+    @Transactional
     @Override
 public RegisterResponse register(RegisterRequest request) {
     Set<Authority> roles = request.getRoles()

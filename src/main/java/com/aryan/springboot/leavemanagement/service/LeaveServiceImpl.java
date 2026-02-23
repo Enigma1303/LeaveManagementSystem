@@ -22,6 +22,7 @@ import java.util.List;
 
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class LeaveServiceImpl implements LeaveService {
@@ -76,7 +77,7 @@ public LeaveSubmitResponse submitLeave(LeaveSubmitRequest request, String email)
         saved.getCreatedAt()
     );
 }
-
+   
    @Override
    public List<LeaveViewResponse> getLeaves(Users user, LeaveStatus status, Long employeeId,
                                           Long managerId, LocalDate startDate,
@@ -127,7 +128,7 @@ public LeaveSubmitResponse submitLeave(LeaveSubmitRequest request, String email)
    }
 
 
-
+   @Transactional
    @Override
    public LeaveStatusResponse updateLeaveStatus(Long leaveId, LeaveStatusRequest request, Users user) {
     if(!hasRole(user, "ROLE_MANAGER") && !hasRole(user, "ROLE_ADMIN"))
