@@ -5,10 +5,16 @@ import com.aryan.springboot.leavemanagement.entity.Users;
 import com.aryan.springboot.leavemanagement.repository.LeaveRequestRepository;
 import com.aryan.springboot.leavemanagement.repository.UserRepository;
 import com.aryan.springboot.leavemanagement.request.LeaveSubmitRequest;
+import com.aryan.springboot.leavemanagement.response.LeaveHistoryResponse;
+import com.aryan.springboot.leavemanagement.response.LeaveViewResponse;
 import com.aryan.springboot.leavemanagement.response.LeaveSubmitResponse;
 
-import java.time.LocalDate;
 
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -22,6 +28,14 @@ public class LeaveServiceImpl implements LeaveService {
         this.leaveRequestRepository = leaveRequestRepository;
         this.userRepository = userRepository;
     }
+
+    
+
+    private boolean hasRole(Users user, String role) {
+    return user.getAuthorities().stream()
+            .anyMatch(a -> a.getName().equals(role));
+}
+
 
    @Override
 public LeaveSubmitResponse submitLeave(LeaveSubmitRequest request, String email) {
@@ -54,4 +68,47 @@ public LeaveSubmitResponse submitLeave(LeaveSubmitRequest request, String email)
         saved.getCreatedAt()
     );
 }
+
+   @Override
+   public List<LeaveViewResponse> getLeaves(Users user) {
+
+    List<LeaveRequest>leaves=new ArrayList<>();
+
+    if(hasRole(user,"ROLE_ADMIN"))
+    {
+        leaves=leaveRequestRepository.findAll();
+    }
+    else if(hasRole(user, "ROLE_MANAGER"))
+    {
+        leaves.addAll(leaveRequestRepository.findByManagerId(user.getId()));
+        leaves.addAll(leaveRequestRepository.findByEmployeeId(user.getId()));
+    }
+    else if(hasRole(user,"ROLE_EMPLOYEE"))
+    {
+        leaves=leaveRequestRepository.findByEmployeeId(user.getId());
+    }
+    else{
+        throw new AccessDeniedException("User does not have a valid role to view leaves");
+    }
+     return leaves.stream().map(leave -> new LeaveViewResponse(
+            leave.getId(),
+            leave.getEmployee().getId(),
+            leave.getEmployee().getName(),
+            leave.getStartDate(),
+            leave.getEndDate(),
+            leave.getStartSession(),
+            leave.getEndSession(),
+            leave.getReason(),
+            leave.getStatus(),
+            leave.getCreatedAt(),
+            leave.getStatusHistory().stream().map(h -> new LeaveHistoryResponse(
+                h.getOldStatus(),
+                h.getNewStatus(),
+                h.getComment(),
+                h.getCreatedBy().getName(),
+                h.getCreatedAt()
+            )).toList()
+        )).toList();
+
+   }
 }

@@ -64,7 +64,9 @@ public class LeaveRequest {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+    
 
+    //One to many mapping to make sure each leave request stores its own history in a set
     @OneToMany(mappedBy = "leaveRequest")
     private Set<LeaveStatusHistory> statusHistory = new HashSet<>();
 
