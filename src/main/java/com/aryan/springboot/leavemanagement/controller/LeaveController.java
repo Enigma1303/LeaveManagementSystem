@@ -1,5 +1,6 @@
 package com.aryan.springboot.leavemanagement.controller;
 
+import com.aryan.springboot.leavemanagement.entity.LeaveStatus;
 import com.aryan.springboot.leavemanagement.entity.Users;
 import com.aryan.springboot.leavemanagement.repository.UserRepository;
 import com.aryan.springboot.leavemanagement.request.LeaveStatusRequest;
@@ -10,6 +11,7 @@ import com.aryan.springboot.leavemanagement.response.LeaveViewResponse;
 import com.aryan.springboot.leavemanagement.service.LeaveService;
 import jakarta.validation.Valid;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
@@ -42,10 +44,20 @@ public class LeaveController {
 
     @GetMapping
     public ResponseEntity<List<LeaveViewResponse>> getLeaves(
-            @AuthenticationPrincipal UserDetails userDetails) {
+        @RequestParam(required = false) LeaveStatus status,
+        @RequestParam(required = false) Long employeeId,
+        @RequestParam(required = false) Long managerId,
+        @RequestParam(required = false) LocalDate startDate,
+        @RequestParam(required = false) LocalDate endDate,
+        @RequestParam(required = false) String search,
+        @AuthenticationPrincipal UserDetails userDetails) 
+        
+    {
         Users user = userRepository.findByEmailWithAuthorities(userDetails.getUsername())
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        return ResponseEntity.ok(leaveService.getLeaves(user));
+            return ResponseEntity.ok(leaveService.getLeaves(
+            user, status, employeeId, managerId, startDate, endDate, search));
+
     }
 
     @PatchMapping("/{id}")

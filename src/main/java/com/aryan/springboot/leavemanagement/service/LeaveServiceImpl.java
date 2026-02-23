@@ -78,22 +78,28 @@ public LeaveSubmitResponse submitLeave(LeaveSubmitRequest request, String email)
 }
 
    @Override
-   public List<LeaveViewResponse> getLeaves(Users user) {
+   public List<LeaveViewResponse> getLeaves(Users user, LeaveStatus status, Long employeeId,
+                                          Long managerId, LocalDate startDate,
+                                          LocalDate endDate, String search) {
 
     List<LeaveRequest>leaves=new ArrayList<>();
 
     if(hasRole(user,"ROLE_ADMIN"))
     {
-        leaves=leaveRequestRepository.findAll();
+        leaves = leaveRequestRepository.findAllWithFilters(
+                status, employeeId, managerId, startDate, endDate, search);
     }
     else if(hasRole(user, "ROLE_MANAGER"))
     {
-        leaves.addAll(leaveRequestRepository.findByManagerId(user.getId()));
-        leaves.addAll(leaveRequestRepository.findByEmployeeId(user.getId()));
+        leaves.addAll(leaveRequestRepository.findByEmployeeIdWithFilters(
+                user.getId(), status, startDate, endDate, search));
+        leaves.addAll(leaveRequestRepository.findByManagerIdWithFilters(
+                user.getId(), status, startDate, endDate, search));
     }
     else if(hasRole(user,"ROLE_EMPLOYEE"))
     {
-        leaves=leaveRequestRepository.findByEmployeeId(user.getId());
+        leaves = leaveRequestRepository.findByEmployeeIdWithFilters(
+                user.getId(), status, startDate, endDate, search);
     }
     else{
         throw new AccessDeniedException("User does not have a valid role to view leaves");
