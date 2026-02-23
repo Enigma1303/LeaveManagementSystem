@@ -1,6 +1,7 @@
 package com.aryan.springboot.leavemanagement.service;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import com.aryan.springboot.leavemanagement.entity.LeaveStatus;
@@ -18,7 +19,7 @@ public interface LeaveService {
 
     List<LeaveViewResponse> getLeaves(Users user, LeaveStatus status, Long employeeId, 
                                    Long managerId, LocalDate startDate, 
-                                   LocalDate endDate, String search);
+                                   LocalDate endDate, LocalDateTime createdAt,String search);
 
     LeaveStatusResponse updateLeaveStatus(Long leaveId, LeaveStatusRequest request, Users user);
 

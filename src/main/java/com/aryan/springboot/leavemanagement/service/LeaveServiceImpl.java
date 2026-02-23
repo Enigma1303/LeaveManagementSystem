@@ -101,26 +101,26 @@ if (overlappingCount > 0) {
    @Override
    public List<LeaveViewResponse> getLeaves(Users user, LeaveStatus status, Long employeeId,
                                           Long managerId, LocalDate startDate,
-                                          LocalDate endDate, String search) {
+                                          LocalDate endDate,LocalDateTime createdAt, String search) {
 
     List<LeaveRequest>leaves=new ArrayList<>();
 
     if(hasRole(user,"ROLE_ADMIN"))
     {
         leaves = leaveRequestRepository.findAllWithFilters(
-                status, employeeId, managerId, startDate, endDate, search);
+                status, employeeId, managerId, startDate, endDate, createdAt,search);
     }
     else if(hasRole(user, "ROLE_MANAGER"))
     {
         leaves.addAll(leaveRequestRepository.findByEmployeeIdWithFilters(
-                user.getId(), status, startDate, endDate, search));
+                user.getId(), status, startDate, endDate,createdAt ,search));
         leaves.addAll(leaveRequestRepository.findByManagerIdWithFilters(
-                user.getId(), status, startDate, endDate, search));
+                user.getId(), status, startDate, endDate,createdAt, search));
     }
     else if(hasRole(user,"ROLE_EMPLOYEE"))
     {
         leaves = leaveRequestRepository.findByEmployeeIdWithFilters(
-                user.getId(), status, startDate, endDate, search);
+                user.getId(), status, startDate, endDate, createdAt, search);
     }
     else{
         throw new AccessDeniedException("User does not have a valid role to view leaves");

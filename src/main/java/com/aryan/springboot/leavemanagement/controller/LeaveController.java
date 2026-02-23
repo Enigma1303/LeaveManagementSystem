@@ -12,6 +12,7 @@ import com.aryan.springboot.leavemanagement.service.LeaveService;
 import jakarta.validation.Valid;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
@@ -49,6 +50,7 @@ public class LeaveController {
         @RequestParam(required = false) Long managerId,
         @RequestParam(required = false) LocalDate startDate,
         @RequestParam(required = false) LocalDate endDate,
+        @RequestParam(required = false) LocalDateTime createdAt,
         @RequestParam(required = false) String search,
         @AuthenticationPrincipal UserDetails userDetails) 
         
@@ -56,7 +58,7 @@ public class LeaveController {
         Users user = userRepository.findByEmailWithAuthorities(userDetails.getUsername())
                 .orElseThrow(() -> new RuntimeException("User not found"));
             return ResponseEntity.ok(leaveService.getLeaves(
-            user, status, employeeId, managerId, startDate, endDate, search));
+            user, status, employeeId, managerId, startDate, endDate, createdAt,search));
 
     }
 

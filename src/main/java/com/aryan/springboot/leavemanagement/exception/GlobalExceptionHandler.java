@@ -1,8 +1,10 @@
 package com.aryan.springboot.leavemanagement.exception;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -66,6 +68,27 @@ public ResponseEntity<?> handleInvalidInput(HttpMessageNotReadableException ex) 
             "timestamp", LocalDateTime.now()
         ));
     }
+
+    @ExceptionHandler(BadCredentialsException.class)
+public ResponseEntity<?> handleBadCredentials(BadCredentialsException ex) {
+    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+        "status", 401,
+        "error", "Unauthorized",
+        "message", "Invalid credentials",  // vague message
+        "timestamp", LocalDateTime.now()
+    ));
+}
+
+
+@ExceptionHandler(DataIntegrityViolationException.class)
+public ResponseEntity<?> handleDataIntegrity(DataIntegrityViolationException ex) {
+    return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+        "status", 409,
+        "error", "Conflict",
+        "message", "A record with this information already exists",
+        "timestamp", LocalDateTime.now()
+    ));
+}
 
 
 }

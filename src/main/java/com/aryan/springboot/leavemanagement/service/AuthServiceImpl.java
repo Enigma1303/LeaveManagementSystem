@@ -10,6 +10,7 @@ import com.aryan.springboot.leavemanagement.response.LoginResponse;
 import com.aryan.springboot.leavemanagement.response.RegisterResponse;
 import com.aryan.springboot.leavemanagement.security.CustomUserDetails;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -85,7 +86,8 @@ public RegisterResponse register(RegisterRequest request) {
         );
 
         Users user = userRepository.findByEmailWithAuthorities(request.getEmail())
-            .orElseThrow(() -> new RuntimeException("User not found"));
+            .orElseThrow(() -> new BadCredentialsException("Invalid credentials"));
+
 
         CustomUserDetails userDetails = new CustomUserDetails(user);
 

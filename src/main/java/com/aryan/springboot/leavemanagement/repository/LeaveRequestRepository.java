@@ -1,6 +1,7 @@
 package com.aryan.springboot.leavemanagement.repository;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -28,6 +29,7 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long
         @Param("status") LeaveStatus status,
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate,
+        @Param("createdAt") LocalDateTime createdAt,
         @Param("search") String search);
 
     @Query(BASEQUERY + "WHERE l.employee.manager.id = :managerId " + COMMON_FILTERS)
@@ -36,6 +38,7 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long
         @Param("status") LeaveStatus status,
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate,
+         @Param("createdAt") LocalDateTime createdAt,
         @Param("search") String search);
 
     @Query(BASEQUERY + "WHERE (:employeeId IS NULL OR l.employee.id = :employeeId) " +
@@ -46,6 +49,7 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long
         @Param("managerId") Long managerId,
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate,
+         @Param("createdAt") LocalDateTime createdAt,
         @Param("search") String search);
 
    @Query("SELECT COUNT(l) FROM LeaveRequest l WHERE l.employee.id = :employeeId " +
