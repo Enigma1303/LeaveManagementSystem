@@ -1,12 +1,16 @@
 package com.aryan.springboot.leavemanagement.response;
 
 import com.aryan.springboot.leavemanagement.entity.LeaveStatus;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.time.LocalDateTime;
 
 public class LeaveStatusResponse {
 
     private Long id;
     private LeaveStatus status;
+
+    @JsonProperty("updated_at")
     private LocalDateTime updatedAt;
 
     public LeaveStatusResponse(Long id, LeaveStatus status, LocalDateTime updatedAt) {

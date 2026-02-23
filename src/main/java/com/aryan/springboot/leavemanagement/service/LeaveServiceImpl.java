@@ -153,7 +153,7 @@ if (overlappingCount > 0) {
    public LeaveStatusResponse updateLeaveStatus(Long leaveId, LeaveStatusRequest request, Users user) {
     if(!hasRole(user, "ROLE_MANAGER") && !hasRole(user, "ROLE_ADMIN"))
     {
-        throw new AccessDeniedException("Only managers andd admins can update leave statuses");
+        throw new AccessDeniedException("Only managers and admins can update leave statuses");
     }
 
     LeaveRequest leave= leaveRequestRepository.findById(leaveId)
@@ -182,6 +182,7 @@ if (currentStatus == LeaveStatus.PENDING && newStatus == LeaveStatus.PENDING) {
     throw new RuntimeException("Leave is already pending");
 }
     leave.setStatus(request.getStatus());
+    leave.setUpdatedAt(LocalDateTime.now());
     LeaveRequest saved=leaveRequestRepository.save(leave);
 
     LeaveStatusHistory history = new LeaveStatusHistory();
