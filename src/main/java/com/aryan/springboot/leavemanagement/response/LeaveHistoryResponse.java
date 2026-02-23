@@ -1,6 +1,8 @@
 package com.aryan.springboot.leavemanagement.response;
 
 import com.aryan.springboot.leavemanagement.entity.LeaveStatus;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.time.LocalDateTime;
 
 public class LeaveHistoryResponse {
@@ -9,6 +11,7 @@ public class LeaveHistoryResponse {
     private LeaveStatus newStatus;
     private String comment;
     private String changedBy;
+    @JsonProperty("created_at")
     private LocalDateTime createdAt;
 
     public LeaveHistoryResponse(LeaveStatus oldStatus, LeaveStatus newStatus,

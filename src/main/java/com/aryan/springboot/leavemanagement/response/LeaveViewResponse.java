@@ -2,6 +2,8 @@ package com.aryan.springboot.leavemanagement.response;
 
 import com.aryan.springboot.leavemanagement.entity.LeaveStatus;
 import com.aryan.springboot.leavemanagement.entity.SessionType;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -17,7 +19,10 @@ public class LeaveViewResponse {
     private SessionType endSession;
     private String reason;
     private LeaveStatus status;
+
+    @JsonProperty("created_at")
     private LocalDateTime createdAt;
+    
     private List<LeaveHistoryResponse> history;
 
     public LeaveViewResponse(Long id, Long employeeId, String employeeName, LocalDate startDate,

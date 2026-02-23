@@ -70,6 +70,7 @@ public class LeaveRequest {
     @OneToMany(mappedBy = "leaveRequest")
     private Set<LeaveStatusHistory> statusHistory = new HashSet<>();
 
+    
     @PrePersist
 protected void onCreate() {
     this.createdAt = LocalDateTime.now();

@@ -3,6 +3,8 @@ package com.aryan.springboot.leavemanagement.response;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public class RegisterResponse {
 
     private Long id;
@@ -10,6 +12,7 @@ public class RegisterResponse {
     private String email;
     private Long managerId;
     private List<String> roles;
+    @JsonProperty("created_at")
     private LocalDateTime createdAt;
 
     public RegisterResponse(Long id, String name, String email, Long managerId, List<String> roles, LocalDateTime createdAt) {
