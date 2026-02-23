@@ -3,6 +3,7 @@ package com.aryan.springboot.leavemanagement.service;
 import com.aryan.springboot.leavemanagement.entity.LeaveRequest;
 import com.aryan.springboot.leavemanagement.entity.LeaveStatus;
 import com.aryan.springboot.leavemanagement.entity.LeaveStatusHistory;
+import com.aryan.springboot.leavemanagement.entity.SessionType;
 import com.aryan.springboot.leavemanagement.entity.Users;
 import com.aryan.springboot.leavemanagement.repository.LeaveRequestRepository;
 import com.aryan.springboot.leavemanagement.repository.UserRepository;
@@ -57,9 +58,28 @@ public LeaveSubmitResponse submitLeave(LeaveSubmitRequest request, String email)
         throw new RuntimeException("Start date cannot be in the past");
     }
 
-    if (request.getEndDate().isBefore(request.getStartDate())) {
+    if (request.getEndDate().isBefore(request.getStartDate()))
+    {
         throw new RuntimeException("End date cannot be before start date");
     }
+
+    if (request.getStartDate().isEqual(request.getEndDate()))
+    {
+        if (request.getStartSession() == SessionType.SECOND_HALF 
+        && request.getEndSession() == SessionType.FIRST_HALF) {
+        throw new RuntimeException(
+            "End session cannot be FIRST_HALF when start session is SECOND_HALF on the same day"
+        );
+    }
+}
+
+  Long overlappingCount = leaveRequestRepository.countOverlappingLeaves(
+        employee.getId(), request.getStartDate(), request.getEndDate());
+if (overlappingCount > 0) {
+    throw new RuntimeException(
+        "You already have a leave request overlapping with the selected dates");
+
+}
 
     LeaveRequest leave = new LeaveRequest();
     leave.setEmployee(employee);
