@@ -2,7 +2,9 @@ package com.aryan.springboot.leavemanagement.controller;
 
 import com.aryan.springboot.leavemanagement.entity.Users;
 import com.aryan.springboot.leavemanagement.repository.UserRepository;
+import com.aryan.springboot.leavemanagement.request.LeaveStatusRequest;
 import com.aryan.springboot.leavemanagement.request.LeaveSubmitRequest;
+import com.aryan.springboot.leavemanagement.response.LeaveStatusResponse;
 import com.aryan.springboot.leavemanagement.response.LeaveSubmitResponse;
 import com.aryan.springboot.leavemanagement.response.LeaveViewResponse;
 import com.aryan.springboot.leavemanagement.service.LeaveService;
@@ -45,4 +47,18 @@ public class LeaveController {
                 .orElseThrow(() -> new RuntimeException("User not found"));
         return ResponseEntity.ok(leaveService.getLeaves(user));
     }
+
+    @PatchMapping("/{id}")
+    public ResponseEntity<LeaveStatusResponse> updateLeaveStatus(@PathVariable Long id,
+                                                                 @Valid @RequestBody LeaveStatusRequest request, 
+                                                                @AuthenticationPrincipal UserDetails userDetails)
+    {
+        Users user=userRepository.findByEmailWithAuthorities(userDetails.getUsername())
+                .orElseThrow(()->new RuntimeException("User not found"));
+        
+        return ResponseEntity.ok(leaveService.updateLeaveStatus(id, request, user));        
+        
+    }                                                         
+
+                                                
 }

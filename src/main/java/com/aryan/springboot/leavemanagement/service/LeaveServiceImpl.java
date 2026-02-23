@@ -1,16 +1,22 @@
 package com.aryan.springboot.leavemanagement.service;
 
 import com.aryan.springboot.leavemanagement.entity.LeaveRequest;
+import com.aryan.springboot.leavemanagement.entity.LeaveStatus;
+import com.aryan.springboot.leavemanagement.entity.LeaveStatusHistory;
 import com.aryan.springboot.leavemanagement.entity.Users;
 import com.aryan.springboot.leavemanagement.repository.LeaveRequestRepository;
 import com.aryan.springboot.leavemanagement.repository.UserRepository;
+import com.aryan.springboot.leavemanagement.request.LeaveStatusRequest;
 import com.aryan.springboot.leavemanagement.request.LeaveSubmitRequest;
 import com.aryan.springboot.leavemanagement.response.LeaveHistoryResponse;
+import com.aryan.springboot.leavemanagement.response.LeaveStatusResponse;
 import com.aryan.springboot.leavemanagement.response.LeaveViewResponse;
 import com.aryan.springboot.leavemanagement.response.LeaveSubmitResponse;
+import com.aryan.springboot.leavemanagement.repository.LeaveStatusHistoryRepository;
 
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -21,12 +27,14 @@ import org.springframework.stereotype.Service;
 public class LeaveServiceImpl implements LeaveService {
 
     private final LeaveRequestRepository leaveRequestRepository;
+    private final LeaveStatusHistoryRepository leaveStatusHistoryRepository;
     private final UserRepository userRepository;
 
     public LeaveServiceImpl(LeaveRequestRepository leaveRequestRepository,
-                            UserRepository userRepository) {
+                            UserRepository userRepository, LeaveStatusHistoryRepository leaveStatusHistoryRepository) {
         this.leaveRequestRepository = leaveRequestRepository;
         this.userRepository = userRepository;
+        this.leaveStatusHistoryRepository=leaveStatusHistoryRepository;
     }
 
     
@@ -110,5 +118,58 @@ public LeaveSubmitResponse submitLeave(LeaveSubmitRequest request, String email)
             )).toList()
         )).toList();
 
+   }
+
+
+
+   @Override
+   public LeaveStatusResponse updateLeaveStatus(Long leaveId, LeaveStatusRequest request, Users user) {
+    if(!hasRole(user, "ROLE_MANAGER") && !hasRole(user, "ROLE_ADMIN"))
+    {
+        throw new AccessDeniedException("Only managers andd admins can update leave statuses");
+    }
+
+    LeaveRequest leave= leaveRequestRepository.findById(leaveId)
+    .orElseThrow(()-> new RuntimeException("No such Leave Request found in the database"));
+
+    if(hasRole(user,"ROLE_MANAGER"))
+    {
+        boolean isSubordinate= leave.getEmployee().getManager() != null && 
+                               leave.getEmployee().getManager().getId().equals(user.getId());
+        if(!isSubordinate)
+            {
+                throw new AccessDeniedException("You can only update leaves of employees under you");
+            }                       
+    }
+
+    LeaveStatus currentStatus = leave.getStatus();
+LeaveStatus newStatus = request.getStatus();
+
+if (currentStatus == LeaveStatus.APPROVED) {
+    throw new RuntimeException("Approved leave cannot be modified");
+}
+if (currentStatus == LeaveStatus.REJECTED && newStatus == LeaveStatus.APPROVED) {
+    throw new RuntimeException("Rejected leave cannot be approved");
+}
+if (currentStatus == LeaveStatus.PENDING && newStatus == LeaveStatus.PENDING) {
+    throw new RuntimeException("Leave is already pending");
+}
+    leave.setStatus(request.getStatus());
+    LeaveRequest saved=leaveRequestRepository.save(leave);
+
+    LeaveStatusHistory history = new LeaveStatusHistory();
+    history.setLeaveRequest(saved);
+    history.setOldStatus(currentStatus);
+    history.setNewStatus(request.getStatus());
+    history.setComment(request.getComment());
+    history.setCreatedBy(user);
+    history.setCreatedAt(LocalDateTime.now());
+    leaveStatusHistoryRepository.save(history);
+
+    return new LeaveStatusResponse(
+        saved.getId(),
+        saved.getStatus(),
+        saved.getUpdatedAt()
+    );
    }
 }

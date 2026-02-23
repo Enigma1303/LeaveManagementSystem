@@ -2,6 +2,7 @@ package com.aryan.springboot.leavemanagement.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -47,7 +48,15 @@ public class GlobalExceptionHandler {
             "timestamp", LocalDateTime.now()
         ));
     }
-
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+public ResponseEntity<?> handleInvalidInput(HttpMessageNotReadableException ex) {
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+        "status", 400,
+        "error", "Bad Request",
+        "message", "Invalid value provided. Check enums like status, sessionType",
+        "timestamp", LocalDateTime.now()
+    ));
+}
     @ExceptionHandler(Exception.class)
     public ResponseEntity<?> handleGeneral(Exception ex) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
@@ -57,4 +66,6 @@ public class GlobalExceptionHandler {
             "timestamp", LocalDateTime.now()
         ));
     }
+
+
 }
