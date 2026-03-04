@@ -10,13 +10,14 @@ import com.aryan.springboot.leavemanagement.entity.LeaveRequest;
 import com.aryan.springboot.leavemanagement.entity.LeaveStatus;
 
 public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long> {
-
-    String COMMON_FILTERS =
-            "AND (:status IS NULL OR l.status = :status) " +
-            "AND (:startDate IS NULL OR l.startDate >= :startDate) " +
-            "AND (:endDate IS NULL OR l.endDate <= :endDate) " +
-            "AND (:search IS NULL OR LOWER(l.reason) LIKE LOWER(CONCAT('%', :search, '%')) " +
-            "OR LOWER(l.employee.name) LIKE LOWER(CONCAT('%', :search, '%'))) ";
+   
+   String COMMON_FILTERS =
+        "AND (:status IS NULL OR l.status = :status) " +
+        "AND (:startDate IS NULL OR l.startDate >= :startDate) " +
+        "AND (:endDate IS NULL OR l.endDate <= :endDate) " +
+        "AND (:createdAt IS NULL OR l.createdAt >= :createdAt) " +
+        "AND (:search IS NULL OR LOWER(l.reason) LIKE LOWER(CONCAT('%', :search, '%')) " +
+        "OR LOWER(l.employee.name) LIKE LOWER(CONCAT('%', :search, '%'))) ";
 
     String BASE_QUERY = "SELECT l FROM LeaveRequest l LEFT JOIN FETCH l.statusHistory ";
     String ORDER_BY = "ORDER BY l.createdAt DESC ";
