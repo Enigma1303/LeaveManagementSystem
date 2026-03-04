@@ -132,7 +132,7 @@ public class LeaveServiceImplTest {
         statusRequest.setStatus(LeaveStatus.APPROVED);
         statusRequest.setComment("Approved!");
 
-        LeaveStatusResponse response = leaveService.updateLeaveStatus(1L, statusRequest, manager);
+        LeaveStatusResponse response = leaveService.updateLeaveStatus(1L, statusRequest, manager.getEmail());
 
         assertNotNull(response);
         assertEquals(LeaveStatus.APPROVED, response.getStatus());
@@ -146,7 +146,7 @@ public class LeaveServiceImplTest {
         statusRequest.setStatus(LeaveStatus.APPROVED);
 
         AccessDeniedException ex = assertThrows(AccessDeniedException.class,
-                () -> leaveService.updateLeaveStatus(1L, statusRequest, employee));
+                () -> leaveService.updateLeaveStatus(1L, statusRequest, employee.getEmail()));
 
         assertEquals("Only managers and admins can update leave statuses", ex.getMessage());
         verify(leaveRequestRepository, never()).findById(any());
