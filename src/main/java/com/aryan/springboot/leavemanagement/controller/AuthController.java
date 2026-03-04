@@ -1,17 +1,16 @@
 package com.aryan.springboot.leavemanagement.controller;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
 import com.aryan.springboot.leavemanagement.request.LoginRequest;
 import com.aryan.springboot.leavemanagement.service.AuthService;
-
-
 import jakarta.validation.Valid;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
@@ -24,6 +23,7 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
+        log.info("POST /api/auth/login - email: {}", request.getEmail());
         return ResponseEntity.ok(authService.login(request));
     }
 }
