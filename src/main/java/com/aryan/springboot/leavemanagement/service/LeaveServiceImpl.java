@@ -17,6 +17,7 @@ import com.aryan.springboot.leavemanagement.repository.LeaveStatusHistoryReposit
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -105,6 +106,7 @@ public class LeaveServiceImpl implements LeaveService {
                     user.getId(), status, startDate, endDate, createdAt, search));
             leaves.addAll(leaveRequestRepository.findByManagerIdWithFilters(
                     user.getId(), status, startDate, endDate, createdAt, search));
+            leaves.sort(Comparator.comparing(LeaveRequest::getCreatedAt).reversed());
         } else if (hasRole(user, "ROLE_EMPLOYEE")) {
             leaves = leaveRequestRepository.findByEmployeeIdWithFilters(
                     user.getId(), status, startDate, endDate, createdAt, search);
@@ -123,7 +125,7 @@ public class LeaveServiceImpl implements LeaveService {
                 leave.getReason(),
                 leave.getStatus(),
                 leave.getCreatedAt(),
-                leave.getStatusHistory().stream().map(h -> new LeaveHistoryResponse(
+                leave.getStatusHistory().stream().sorted(Comparator.comparing(LeaveStatusHistory::getCreatedAt).reversed()).map(h -> new LeaveHistoryResponse(
                         h.getOldStatus(),
                         h.getNewStatus(),
                         h.getComment(),
