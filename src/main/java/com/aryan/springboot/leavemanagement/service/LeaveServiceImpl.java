@@ -19,6 +19,9 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -157,15 +160,15 @@ public class LeaveServiceImpl implements LeaveService {
         LeaveStatus currentStatus = leave.getStatus();
         LeaveStatus newStatus = request.getStatus();
 
-        if (currentStatus == LeaveStatus.APPROVED) {
-            throw new RuntimeException("Approved leave cannot be modified");
-        }
-        if (currentStatus == LeaveStatus.REJECTED && newStatus == LeaveStatus.APPROVED) {
-            throw new RuntimeException("Rejected leave cannot be approved");
-        }
-        if (currentStatus == LeaveStatus.PENDING && newStatus == LeaveStatus.PENDING) {
-            throw new RuntimeException("Leave is already pending");
-        }
+        Map<LeaveStatus, Set<LeaveStatus>> validTransitions = Map.of(
+        LeaveStatus.PENDING, Set.of(LeaveStatus.APPROVED, LeaveStatus.REJECTED));
+
+
+        Set<LeaveStatus> allowed = validTransitions.getOrDefault(currentStatus, Set.of());
+        if (!allowed.contains(newStatus)) {
+            throw new RuntimeException(
+                "Cannot transition leave from " + currentStatus + " to " + newStatus);
+}
 
         leave.setStatus(request.getStatus());
         leave.setUpdatedAt(LocalDateTime.now());
