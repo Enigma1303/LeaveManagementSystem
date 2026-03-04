@@ -56,10 +56,7 @@ public class LeaveServiceImpl implements LeaveService {
     public LeaveSubmitResponse submitLeave(LeaveSubmitRequest request, String email) {
         Users employee = getUser(email); // use helper
 
-        LocalDate today = LocalDate.now();
-        if (request.getStartDate().isBefore(today)) {
-            throw new RuntimeException("Start date cannot be in the past");
-        }
+      
         if (request.getEndDate().isBefore(request.getStartDate())) {
             throw new RuntimeException("End date cannot be before start date");
         }
