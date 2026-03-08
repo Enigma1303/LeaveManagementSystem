@@ -1,0 +1,27 @@
+version: "3.8"
+
+services:
+
+  mysql:
+    image: mysql:8
+    container_name: leave_mysql
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  app:
+    build: src
+    container_name: leave_app
+    depends_on:
+      - mysql
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"
+
+volumes:
+  mysql_data:

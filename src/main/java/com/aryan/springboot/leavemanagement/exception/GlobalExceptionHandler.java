@@ -9,6 +9,12 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.MalformedJwtException;
+import io.jsonwebtoken.security.SignatureException;
+
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -43,6 +49,54 @@ public class GlobalExceptionHandler {
                 "timestamp", LocalDateTime.now()
         ));
     }
+
+    /* ---------------- JWT Exceptions : Added after reducing the try catch blocks in JwtServiceImpl---------------- */
+
+    @ExceptionHandler(ExpiredJwtException.class)
+    public ResponseEntity<?> handleExpiredJwt(ExpiredJwtException ex) {
+        log.warn("JWT token expired: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                "status", 401,
+                "error", "Unauthorized",
+                "message", "JWT token has expired",
+                "timestamp", LocalDateTime.now()
+        ));
+    }
+
+    @ExceptionHandler(MalformedJwtException.class)
+    public ResponseEntity<?> handleMalformedJwt(MalformedJwtException ex) {
+        log.warn("Malformed JWT token: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                "status", 400,
+                "error", "Bad Request",
+                "message", "Malformed JWT token",
+                "timestamp", LocalDateTime.now()
+        ));
+    }
+
+    @ExceptionHandler(SignatureException.class)
+    public ResponseEntity<?> handleInvalidSignature(SignatureException ex) {
+        log.warn("Invalid JWT signature: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                "status", 401,
+                "error", "Unauthorized",
+                "message", "Invalid JWT signature",
+                "timestamp", LocalDateTime.now()
+        ));
+    }
+
+    @ExceptionHandler(JwtException.class)
+    public ResponseEntity<?> handleJwtException(JwtException ex) {
+        log.warn("JWT processing error: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                "status", 401,
+                "error", "Unauthorized",
+                "message", "Invalid JWT token",
+                "timestamp", LocalDateTime.now()
+        ));
+    }
+
+    /* ------------------------------------------------------ */
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<?> handleRuntime(RuntimeException ex) {
