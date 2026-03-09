@@ -1,6 +1,5 @@
 package com.aryan.springboot.leavemanagement.entity.enums;
 
-public enum SessionType {
-    FIRST_HALF,
-    SECOND_HALF
+public enum Session {
+    FIRST_HALF, SECOND_HALF
 }

@@ -2,7 +2,6 @@ package com.aryan.springboot.leavemanagement.service;
 
 import com.aryan.springboot.leavemanagement.entity.*;
 import com.aryan.springboot.leavemanagement.entity.enums.LeaveStatus;
-import com.aryan.springboot.leavemanagement.entity.enums.SessionType;
 import com.aryan.springboot.leavemanagement.repository.LeaveRequestRepository;
 import com.aryan.springboot.leavemanagement.repository.LeaveStatusHistoryRepository;
 import com.aryan.springboot.leavemanagement.repository.UserRepository;

@@ -8,6 +8,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import java.util.ArrayList;
+import java.util.List;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -28,6 +30,9 @@ public class LeaveRequest {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id", nullable = false)
     private Employee employee;
+
+    @OneToMany(mappedBy = "leaveRequest", fetch = FetchType.LAZY)
+    private List<LeaveStatusHistory> statusHistory = new ArrayList<>();
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "leave_type_id", nullable = false)

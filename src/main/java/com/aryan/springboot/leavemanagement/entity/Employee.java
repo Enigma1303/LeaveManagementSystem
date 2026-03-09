@@ -1,8 +1,6 @@
 package com.aryan.springboot.leavemanagement.entity;
 
-import com.aryan.springboot.leavemanagement.entity.enums.Role;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -16,7 +14,6 @@ import java.util.Set;
 @Getter
 @Setter
 @NoArgsConstructor
-@AllArgsConstructor
 public class Employee {
 
     @Id
@@ -25,24 +22,28 @@ public class Employee {
     private Long id;
 
     @Column(name = "full_name", nullable = false)
-    private String fullName;
+    private String name;
 
-    @Column(name = "email", nullable = false, unique = true)
+    @Column(name = "email", unique = true, nullable = false)
     private String email;
 
     @Column(name = "password_hash", nullable = false)
-    private String passwordHash;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "role", nullable = false)
-    private Role role;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "manager_id", referencedColumnName = "id")
-    private Employee manager;
+    private String password;
 
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "manager_id")
+    private Employee manager;
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "employee_authority",
+            joinColumns = @JoinColumn(name = "employee_id"),
+            inverseJoinColumns = @JoinColumn(name = "authority_id")
+    )
+    private Set<Authority> authorities = new HashSet<>();
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -50,13 +51,12 @@ public class Employee {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    @ManyToMany(fetch = FetchType.EAGER)
-    @JoinTable(
-            name = "employee_authority",
-            joinColumns = @JoinColumn(name = "employee_id"),
-            inverseJoinColumns = @JoinColumn(name = "authority_id")
-    )
-    private Set<Authority> authorities = new HashSet<>();
+    public Employee(String name, String email, String password) {
+        this.name = name;
+        this.email = email;
+        this.password = password;
+        this.isActive = true;
+    }
 
     @PrePersist
     protected void onCreate() {

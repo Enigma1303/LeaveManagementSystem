@@ -1,8 +1,6 @@
-package com.aryan.springboot.leavemanagement.entity.enums;
+package com.aryan.springboot.leavemanagement.entity;
 
-import com.aryan.springboot.leavemanagement.entity.BulkJob;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -14,7 +12,6 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @NoArgsConstructor
-@AllArgsConstructor
 public class BulkJobError {
 
     @Id
@@ -26,7 +23,7 @@ public class BulkJobError {
     @JoinColumn(name = "bulk_job_id", nullable = false)
     private BulkJob bulkJob;
 
-    @Column(name = "row_number", nullable = false)
+    @Column(name = "csv_row_number", nullable = false)
     private Integer rowNumber;
 
     @Column(name = "raw_data", nullable = false, columnDefinition = "TEXT")

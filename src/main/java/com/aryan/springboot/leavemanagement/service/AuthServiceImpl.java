@@ -57,6 +57,7 @@ public class AuthServiceImpl implements AuthService {
                         }))
                 .collect(Collectors.toSet());
 
+        // Use fullName and passwordHash aligned with teammate's Employee entity
         Employee user = new Employee(
                 request.getName(),
                 request.getEmail(),

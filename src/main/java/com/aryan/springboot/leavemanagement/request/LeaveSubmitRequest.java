@@ -1,6 +1,6 @@
 package com.aryan.springboot.leavemanagement.request;
 
-import com.aryan.springboot.leavemanagement.entity.enums.SessionType;
+import com.aryan.springboot.leavemanagement.entity.enums.Session;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
@@ -20,10 +20,10 @@ public class LeaveSubmitRequest {
     private String reason;
 
     @NotNull(message = "Start session is required")
-    private SessionType startSession;
+    private Session startSession;
 
     @NotNull(message = "End session is required")
-    private SessionType endSession;
+    private Session endSession;
 
     public Long getLeaveTypeId() { return leaveTypeId; }
     public void setLeaveTypeId(Long leaveTypeId) { this.leaveTypeId = leaveTypeId; }
@@ -37,9 +37,9 @@ public class LeaveSubmitRequest {
     public String getReason() { return reason; }
     public void setReason(String reason) { this.reason = reason; }
 
-    public SessionType getStartSession() { return startSession; }
-    public void setStartSession(SessionType startSession) { this.startSession = startSession; }
+    public Session getStartSession() { return startSession; }
+    public void setStartSession(Session startSession) { this.startSession = startSession; }
 
-    public SessionType getEndSession() { return endSession; }
-    public void setEndSession(SessionType endSession) { this.endSession = endSession; }
+    public Session getEndSession() { return endSession; }
+    public void setEndSession(Session endSession) { this.endSession = endSession; }
 }

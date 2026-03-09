@@ -1,7 +1,7 @@
 package com.aryan.springboot.leavemanagement.response;
 
 import com.aryan.springboot.leavemanagement.entity.enums.LeaveStatus;
-import com.aryan.springboot.leavemanagement.entity.enums.SessionType;
+import com.aryan.springboot.leavemanagement.entity.enums.Session;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.time.LocalDate;
@@ -15,8 +15,8 @@ public class LeaveViewResponse {
     private String employeeName;
     private LocalDate startDate;
     private LocalDate endDate;
-    private SessionType startSession;
-    private SessionType endSession;
+    private Session startSession;
+    private Session endSession;
     private String reason;
     private LeaveStatus status;
 
@@ -26,7 +26,7 @@ public class LeaveViewResponse {
     private List<LeaveHistoryResponse> history;
 
     public LeaveViewResponse(Long id, Long employeeId, String employeeName, LocalDate startDate,
-                         LocalDate endDate, SessionType startSession, SessionType endSession,
+                         LocalDate endDate, Session startSession, Session endSession,
                          String reason, LeaveStatus status, LocalDateTime createdAt,
                          List<LeaveHistoryResponse> history) {
         this.id = id;
@@ -82,19 +82,19 @@ public class LeaveViewResponse {
         this.endDate = endDate;
     }
 
-    public SessionType getStartSession() {
+    public Session getStartSession() {
         return startSession;
     }
 
-    public void setStartSession(SessionType startSession) {
+    public void setStartSession(Session startSession) {
         this.startSession = startSession;
     }
 
-    public SessionType getEndSession() {
+    public Session getEndSession() {
         return endSession;
     }
 
-    public void setEndSession(SessionType endSession) {
+    public void setEndSession(Session endSession) {
         this.endSession = endSession;
     }
 

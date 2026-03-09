@@ -2,12 +2,11 @@ package com.aryan.springboot.leavemanagement.security;
 
 import com.aryan.springboot.leavemanagement.entity.Employee;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
 import java.util.stream.Collectors;
-
 
 public class CustomUserDetails implements UserDetails {
 
@@ -39,8 +38,23 @@ public class CustomUserDetails implements UserDetails {
         return user.getId();
     }
 
-    @Override public boolean isAccountNonExpired() { return true; }
-    @Override public boolean isAccountNonLocked() { return true; }
-    @Override public boolean isCredentialsNonExpired() { return true; }
-    @Override public boolean isEnabled() { return true; }
+    @Override
+    public boolean isAccountNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isAccountNonLocked() {
+        return true;
+    }
+
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return user.getIsActive();
+    }
 }

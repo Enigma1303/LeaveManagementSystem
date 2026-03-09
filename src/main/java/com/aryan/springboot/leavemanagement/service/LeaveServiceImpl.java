@@ -6,7 +6,7 @@ import com.aryan.springboot.leavemanagement.entity.LeaveType;
 import com.aryan.springboot.leavemanagement.entity.Employee;
 import com.aryan.springboot.leavemanagement.entity.enums.ApprovalStage;
 import com.aryan.springboot.leavemanagement.entity.enums.LeaveStatus;
-import com.aryan.springboot.leavemanagement.entity.enums.SessionType;
+import com.aryan.springboot.leavemanagement.entity.enums.Session;
 import com.aryan.springboot.leavemanagement.repository.LeaveRequestRepository;
 import com.aryan.springboot.leavemanagement.repository.LeaveStatusHistoryRepository;
 import com.aryan.springboot.leavemanagement.repository.LeaveTypeRepository;
@@ -64,12 +64,11 @@ public class LeaveServiceImpl implements LeaveService {
         return user.getAuthorities().stream().anyMatch(a -> a.getName().equals(role));
     }
 
-
     private int computeRequestedUnits(LocalDate startDate, LocalDate endDate,
-                                      SessionType startSession, SessionType endSession) {
+                                      Session startSession, Session endSession) {
 
         if (startDate.isEqual(endDate)) {
-            if (startSession == SessionType.FIRST_HALF && endSession == SessionType.SECOND_HALF) {
+            if (startSession == Session.FIRST_HALF && endSession == Session.SECOND_HALF) {
                 return 1;
             }
             return 1;
@@ -116,8 +115,8 @@ public class LeaveServiceImpl implements LeaveService {
             throw new RuntimeException("End date cannot be before start date");
         }
         if (request.getStartDate().isEqual(request.getEndDate())) {
-            if (request.getStartSession() == SessionType.SECOND_HALF
-                    && request.getEndSession() == SessionType.FIRST_HALF) {
+            if (request.getStartSession() == Session.SECOND_HALF
+                    && request.getEndSession() == Session.FIRST_HALF) {
                 throw new RuntimeException(
                         "End session cannot be FIRST_HALF when start session is SECOND_HALF on the same day");
             }
@@ -135,7 +134,6 @@ public class LeaveServiceImpl implements LeaveService {
                             + daysUntilStart + " day(s) before the start date.");
         }
 
-
         int requestedUnits = computeRequestedUnits(
                 request.getStartDate(), request.getEndDate(),
                 request.getStartSession(), request.getEndSession());
@@ -147,9 +145,9 @@ public class LeaveServiceImpl implements LeaveService {
                             + leaveType.getName() + "'");
         }
 
-        // Overlap check karo
         Long overlappingCount = leaveRequestRepository.countOverlappingLeaves(
-                employee.getId(), request.getStartDate(), request.getEndDate());
+                employee.getId(), request.getStartDate(), request.getEndDate(),
+                LeaveStatus.REJECTED);
         if (overlappingCount > 0) {
             throw new RuntimeException(
                     "You already have a leave request overlapping with the selected dates");
@@ -161,7 +159,6 @@ public class LeaveServiceImpl implements LeaveService {
         leaveBalanceService.lockPendingUnits(
                 employee.getId(), leaveType.getId(), year, requestedUnits);
 
-        // multi-level flag ka snapshot
         boolean isMultiLevel = Boolean.TRUE.equals(leaveType.getIsMultiLevelApproval());
 
         LeaveRequest leave = new LeaveRequest();
@@ -179,7 +176,6 @@ public class LeaveServiceImpl implements LeaveService {
 
         LeaveRequest saved = leaveRequestRepository.save(leave);
 
-        // write initial status history
         LeaveStatusHistory history = new LeaveStatusHistory();
         history.setLeaveRequest(saved);
         history.setOldStatus(null);
@@ -217,7 +213,7 @@ public class LeaveServiceImpl implements LeaveService {
             throw new AccessDeniedException("User does not have a valid role to view leaves");
         }
 
-        return leaves.stream().map(leave -> new LeaveViewResponse(
+        List<LeaveViewResponse> result = leaves.stream().map(leave -> new LeaveViewResponse(
                         leave.getId(),
                         leave.getEmployee().getId(),
                         leave.getEmployee().getName(),
@@ -237,7 +233,8 @@ public class LeaveServiceImpl implements LeaveService {
                                         h.getChangedBy().getName(),
                                         h.getCreatedAt()))
                                 .toList()))
-                .toList();
+                .collect(java.util.stream.Collectors.toList());
+        return result;
     }
 
     @Transactional
@@ -266,7 +263,6 @@ public class LeaveServiceImpl implements LeaveService {
         LeaveStatus currentStatus = leave.getStatus();
         LeaveStatus newStatus = request.getStatus();
 
-        // Valid transitions based on role and current status
         Map<LeaveStatus, Set<LeaveStatus>> validTransitions = Map.of(
                 LeaveStatus.PENDING,
                 Set.of(LeaveStatus.MANAGER_APPROVED, LeaveStatus.REJECTED),
@@ -279,7 +275,6 @@ public class LeaveServiceImpl implements LeaveService {
                     "Cannot transition leave from " + currentStatus + " to " + newStatus);
         }
 
-        // Manager can only do PENDING → MANAGER_APPROVED or PENDING → REJECTED
         if (hasRole(user, "ROLE_MANAGER") && !hasRole(user, "ROLE_ADMIN")) {
             if (currentStatus != LeaveStatus.PENDING) {
                 throw new AccessDeniedException(
@@ -287,8 +282,6 @@ public class LeaveServiceImpl implements LeaveService {
             }
         }
 
-        // Admin can only do MANAGER_APPROVED → APPROVED or MANAGER_APPROVED → REJECTED
-        // (or PENDING → APPROVED/REJECTED if not multi-level)
         if (hasRole(user, "ROLE_ADMIN") && !hasRole(user, "ROLE_MANAGER")) {
             if (Boolean.TRUE.equals(leave.getIsMultiLevel())
                     && currentStatus == LeaveStatus.PENDING) {
@@ -299,7 +292,6 @@ public class LeaveServiceImpl implements LeaveService {
 
         leave.setStatus(newStatus);
 
-        // Update approval stage
         if (newStatus == LeaveStatus.MANAGER_APPROVED) {
             leave.setApprovalStage(ApprovalStage.ADMIN);
         } else if (newStatus == LeaveStatus.APPROVED || newStatus == LeaveStatus.REJECTED) {
@@ -308,7 +300,6 @@ public class LeaveServiceImpl implements LeaveService {
 
         LeaveRequest saved = leaveRequestRepository.save(leave);
 
-        // Balance adjustments
         int year = leave.getStartDate().getYear();
         Long empId = leave.getEmployee().getId();
         Long ltId = leave.getLeaveType().getId();
@@ -322,7 +313,7 @@ public class LeaveServiceImpl implements LeaveService {
             log.info("Balance released on rejection for leaveId: {}", leaveId);
         }
 
-        // Status history
+
         LeaveStatusHistory history = new LeaveStatusHistory();
         history.setLeaveRequest(saved);
         history.setOldStatus(currentStatus);
