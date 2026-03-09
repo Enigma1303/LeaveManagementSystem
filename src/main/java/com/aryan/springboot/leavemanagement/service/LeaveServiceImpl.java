@@ -253,8 +253,12 @@ public class LeaveServiceImpl implements LeaveService {
                         "No such Leave Request found in the database"));
 
         if (hasRole(user, "ROLE_MANAGER") && !hasRole(user, "ROLE_ADMIN")) {
-            boolean isSubordinate = leave.getEmployee().getManager() != null &&
-                    leave.getEmployee().getManager().getId().equals(user.getId());
+            // If the leave belongs to an employee with no manager, only admin can approve
+            if (leave.getEmployee().getManager() == null) {
+                throw new AccessDeniedException(
+                        "This employee has no manager assigned. Only Admin can approve this leave.");
+            }
+            boolean isSubordinate = leave.getEmployee().getManager().getId().equals(user.getId());
             if (!isSubordinate) {
                 throw new AccessDeniedException("You can only update leaves of employees under you");
             }
@@ -312,7 +316,6 @@ public class LeaveServiceImpl implements LeaveService {
             leaveBalanceService.releasePendingUnits(empId, ltId, year, units);
             log.info("Balance released on rejection for leaveId: {}", leaveId);
         }
-
 
         LeaveStatusHistory history = new LeaveStatusHistory();
         history.setLeaveRequest(saved);
