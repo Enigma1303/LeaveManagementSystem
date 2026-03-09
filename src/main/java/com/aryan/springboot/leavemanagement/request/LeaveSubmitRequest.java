@@ -7,6 +7,9 @@ import java.time.LocalDate;
 
 public class LeaveSubmitRequest {
 
+    @NotNull(message = "Leave type is required")
+    private Long leaveTypeId;
+
     @NotNull(message = "Start date is required")
     private LocalDate startDate;
 
@@ -22,45 +25,21 @@ public class LeaveSubmitRequest {
     @NotNull(message = "End session is required")
     private SessionType endSession;
 
-    public LocalDate getStartDate() {
-        return startDate;
-    }
+    public Long getLeaveTypeId() { return leaveTypeId; }
+    public void setLeaveTypeId(Long leaveTypeId) { this.leaveTypeId = leaveTypeId; }
 
-    public void setStartDate(LocalDate startDate) {
-        this.startDate = startDate;
-    }
+    public LocalDate getStartDate() { return startDate; }
+    public void setStartDate(LocalDate startDate) { this.startDate = startDate; }
 
-    public LocalDate getEndDate() {
-        return endDate;
-    }
+    public LocalDate getEndDate() { return endDate; }
+    public void setEndDate(LocalDate endDate) { this.endDate = endDate; }
 
-    public void setEndDate(LocalDate endDate) {
-        this.endDate = endDate;
-    }
+    public String getReason() { return reason; }
+    public void setReason(String reason) { this.reason = reason; }
 
-    public String getReason() {
-        return reason;
-    }
+    public SessionType getStartSession() { return startSession; }
+    public void setStartSession(SessionType startSession) { this.startSession = startSession; }
 
-    public void setReason(String reason) {
-        this.reason = reason;
-    }
-
-    public SessionType getStartSession() {
-        return startSession;
-    }
-
-    public void setStartSession(SessionType startSession) {
-        this.startSession = startSession;
-    }
-
-    public SessionType getEndSession() {
-        return endSession;
-    }
-
-    public void setEndSession(SessionType endSession) {
-        this.endSession = endSession;
-    }
-
-    
+    public SessionType getEndSession() { return endSession; }
+    public void setEndSession(SessionType endSession) { this.endSession = endSession; }
 }
