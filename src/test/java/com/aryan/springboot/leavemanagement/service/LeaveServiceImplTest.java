@@ -1,6 +1,8 @@
 package com.aryan.springboot.leavemanagement.service;
 
 import com.aryan.springboot.leavemanagement.entity.*;
+import com.aryan.springboot.leavemanagement.entity.enums.LeaveStatus;
+import com.aryan.springboot.leavemanagement.entity.enums.SessionType;
 import com.aryan.springboot.leavemanagement.repository.LeaveRequestRepository;
 import com.aryan.springboot.leavemanagement.repository.LeaveStatusHistoryRepository;
 import com.aryan.springboot.leavemanagement.repository.UserRepository;
@@ -39,14 +41,14 @@ public class LeaveServiceImplTest {
     @InjectMocks
     private LeaveServiceImpl leaveService;
 
-    private Users employee;
-    private Users manager;
+    private Employee employee;
+    private Employee manager;
     private LeaveRequest leaveRequest;
     private LeaveSubmitRequest submitRequest;
 
     @BeforeEach
     void setUp() {
-        manager = new Users();
+        manager = new Employee();
         manager.setId(1L);
         manager.setName("Manager");
         manager.setEmail("manager@example.com");
@@ -56,7 +58,7 @@ public class LeaveServiceImplTest {
         managerRoles.add(managerRole);
         manager.setAuthorities(managerRoles);
 
-        employee = new Users();
+        employee = new Employee();
         employee.setId(2L);
         employee.setName("Employee");
         employee.setEmail("employee@example.com");

@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import com.aryan.springboot.leavemanagement.entity.LeaveRequest;
-import com.aryan.springboot.leavemanagement.entity.LeaveStatus;
+import com.aryan.springboot.leavemanagement.entity.enums.LeaveStatus;
 
 public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long> {
    

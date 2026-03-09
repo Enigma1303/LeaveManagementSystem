@@ -1,6 +1,6 @@
 package com.aryan.springboot.leavemanagement.request;
 
-import com.aryan.springboot.leavemanagement.entity.SessionType;
+import com.aryan.springboot.leavemanagement.entity.enums.SessionType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;

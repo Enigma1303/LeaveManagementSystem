@@ -1,7 +1,7 @@
 package com.aryan.springboot.leavemanagement.service;
 
 import com.aryan.springboot.leavemanagement.entity.Authority;
-import com.aryan.springboot.leavemanagement.entity.Users;
+import com.aryan.springboot.leavemanagement.entity.Employee;
 import com.aryan.springboot.leavemanagement.repository.AuthorityRepository;
 import com.aryan.springboot.leavemanagement.repository.UserRepository;
 import com.aryan.springboot.leavemanagement.request.LoginRequest;
@@ -57,7 +57,7 @@ public class AuthServiceImpl implements AuthService {
                         }))
                 .collect(Collectors.toSet());
 
-        Users user = new Users(
+        Employee user = new Employee(
                 request.getName(),
                 request.getEmail(),
                 passwordEncoder.encode(request.getPassword())
@@ -65,7 +65,7 @@ public class AuthServiceImpl implements AuthService {
         user.setAuthorities(roles);
 
         if (request.getManagerId() != null) {
-            Users manager = userRepository.findById(request.getManagerId())
+            Employee manager = userRepository.findById(request.getManagerId())
                     .orElseThrow(() -> {
                         log.error("Manager not found for id: {}", request.getManagerId());
                         return new RuntimeException("Manager not found");
@@ -74,7 +74,7 @@ public class AuthServiceImpl implements AuthService {
             log.info("Manager with id: {} assigned to user: {}", request.getManagerId(), request.getEmail());
         }
 
-        Users saved = userRepository.save(user);
+        Employee saved = userRepository.save(user);
         log.info("User registered successfully - id: {}, email: {}, roles: {}",
                 saved.getId(), saved.getEmail(), roles.stream().map(Authority::getName).toList());
 
@@ -104,7 +104,7 @@ public class AuthServiceImpl implements AuthService {
             throw e;
         }
 
-        Users user = userRepository.findByEmailWithAuthorities(request.getEmail())
+        Employee user = userRepository.findByEmailWithAuthorities(request.getEmail())
                 .orElseThrow(() -> {
                     log.error("User not found after authentication for email: {}", request.getEmail());
                     return new BadCredentialsException("Invalid credentials");

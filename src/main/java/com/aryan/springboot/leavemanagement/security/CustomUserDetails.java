@@ -1,6 +1,6 @@
 package com.aryan.springboot.leavemanagement.security;
 
-import com.aryan.springboot.leavemanagement.entity.Users;
+import com.aryan.springboot.leavemanagement.entity.Employee;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -11,9 +11,9 @@ import java.util.stream.Collectors;
 
 public class CustomUserDetails implements UserDetails {
 
-    private final Users user;
+    private final Employee user;
 
-    public CustomUserDetails(Users user) {
+    public CustomUserDetails(Employee user) {
         this.user = user;
     }
 

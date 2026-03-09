@@ -1,10 +1,10 @@
 package com.aryan.springboot.leavemanagement.service;
 
 import com.aryan.springboot.leavemanagement.entity.LeaveRequest;
-import com.aryan.springboot.leavemanagement.entity.LeaveStatus;
+import com.aryan.springboot.leavemanagement.entity.enums.LeaveStatus;
 import com.aryan.springboot.leavemanagement.entity.LeaveStatusHistory;
-import com.aryan.springboot.leavemanagement.entity.SessionType;
-import com.aryan.springboot.leavemanagement.entity.Users;
+import com.aryan.springboot.leavemanagement.entity.enums.SessionType;
+import com.aryan.springboot.leavemanagement.entity.Employee;
 import com.aryan.springboot.leavemanagement.repository.LeaveRequestRepository;
 import com.aryan.springboot.leavemanagement.repository.UserRepository;
 import com.aryan.springboot.leavemanagement.request.LeaveStatusRequest;
@@ -42,7 +42,7 @@ public class LeaveServiceImpl implements LeaveService {
         this.leaveStatusHistoryRepository = leaveStatusHistoryRepository;
     }
 
-    private Users getUser(String email) {
+    private Employee getUser(String email) {
         return userRepository.findByEmailWithAuthorities(email)
                 .orElseThrow(() -> {
                     log.error("User not found for email: {}", email);
@@ -50,7 +50,7 @@ public class LeaveServiceImpl implements LeaveService {
                 });
     }
 
-    private boolean hasRole(Users user, String role) {
+    private boolean hasRole(Employee user, String role) {
         return user.getAuthorities().stream()
                 .anyMatch(a -> a.getName().equals(role));
     }
@@ -58,7 +58,7 @@ public class LeaveServiceImpl implements LeaveService {
     @Override
     public LeaveSubmitResponse submitLeave(LeaveSubmitRequest request, String email) {
         log.info("Leave submission requested by: {}", email);
-        Users employee = getUser(email);
+        Employee employee = getUser(email);
 
         if (request.getEndDate().isBefore(request.getStartDate())) {
             log.warn("Invalid dates: endDate {} is before startDate {} for user: {}",
@@ -107,7 +107,7 @@ public class LeaveServiceImpl implements LeaveService {
         log.info("Fetching leaves for: {} with filters - status: {}, employeeId: {}, managerId: {}",
                 email, status, employeeId, managerId);
 
-        Users user = getUser(email);
+        Employee user = getUser(email);
         List<LeaveRequest> leaves = new ArrayList<>();
 
         if (hasRole(user, "ROLE_ADMIN")) {
@@ -156,7 +156,7 @@ public class LeaveServiceImpl implements LeaveService {
     public LeaveStatusResponse updateLeaveStatus(Long leaveId, LeaveStatusRequest request, String email) {
         log.info("Leave status update requested for leaveId: {} by: {}", leaveId, email);
 
-        Users user = getUser(email);
+        Employee user = getUser(email);
 
         if (!hasRole(user, "ROLE_MANAGER") && !hasRole(user, "ROLE_ADMIN")) {
             log.warn("Access denied for user: {} - not a manager or admin", email);

@@ -1,6 +1,6 @@
 package com.aryan.springboot.leavemanagement.controller;
 
-import com.aryan.springboot.leavemanagement.entity.LeaveStatus;
+import com.aryan.springboot.leavemanagement.entity.enums.LeaveStatus;
 import com.aryan.springboot.leavemanagement.request.LeaveStatusRequest;
 import com.aryan.springboot.leavemanagement.request.LeaveSubmitRequest;
 import com.aryan.springboot.leavemanagement.response.LeaveStatusResponse;

@@ -1,175 +1,85 @@
 package com.aryan.springboot.leavemanagement.entity;
 
-import jakarta.validation.constraints.NotNull;
+import com.aryan.springboot.leavemanagement.entity.enums.ApprovalStage;
+import com.aryan.springboot.leavemanagement.entity.enums.LeaveStatus;
+import com.aryan.springboot.leavemanagement.entity.enums.Session;
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.Set;
-
-import jakarta.persistence.*;
 
 @Entity
 @Table(name = "leave_request")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 public class LeaveRequest {
-    
-    public LeaveRequest(){}
-    public LeaveRequest(@NotNull Users employee, @NotNull LocalDate startDate, @NotNull LocalDate endDate,
-            @NotNull String reason, SessionType startSession, SessionType endSession, LeaveStatus status) {
-        this.employee = employee;
-        this.startDate = startDate;
-        this.endDate = endDate;
-        this.reason = reason;
-        this.startSession = startSession;
-        this.endSession = endSession;
-        this.status = LeaveStatus.PENDING;
-    }
 
-    
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
     private Long id;
 
-    @NotNull
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id", nullable = false)
-    private Users employee;
+    private Employee employee;
 
-    @NotNull
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "leave_type_id", nullable = false)
+    private LeaveType leaveType;
+
     @Column(name = "start_date", nullable = false)
     private LocalDate startDate;
 
-    @NotNull
     @Column(name = "end_date", nullable = false)
     private LocalDate endDate;
 
-    @NotNull
-    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "start_session", nullable = false)
+    private Session startSession;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "end_session", nullable = false)
+    private Session endSession;
+
+    @Column(name = "requested_units", nullable = false)
+    private Integer requestedUnits;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private LeaveStatus status;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "approval_stage", nullable = false)
+    private ApprovalStage approvalStage;
+
+    @Column(name = "reason", nullable = false, columnDefinition = "TEXT")
     private String reason;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "start_session")
-    private SessionType startSession;
+    @Column(name = "rejection_reason", columnDefinition = "TEXT")
+    private String rejectionReason;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "end_session")
-    private SessionType endSession;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private LeaveStatus status = LeaveStatus.PENDING;
+    @Column(name = "is_multi_level", nullable = false)
+    private Boolean isMultiLevel;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
-    
 
-    //One to many mapping to make sure each leave request stores its own history in a set
-    @OneToMany(mappedBy = "leaveRequest")
-    private Set<LeaveStatusHistory> statusHistory = new HashSet<>();
-
-    
     @PrePersist
-protected void onCreate() {
-    this.createdAt = LocalDateTime.now();
-    this.status = LeaveStatus.PENDING;
+    protected void onCreate() {
+        this.createdAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
 }
-
-@PreUpdate
-protected void onUpdate() {
-    this.updatedAt = LocalDateTime.now();
-}
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Users getEmployee() {
-        return employee;
-    }
-
-    public void setEmployee(Users employee) {
-        this.employee = employee;
-    }
-
-    public LocalDate getStartDate() {
-        return startDate;
-    }
-
-    public void setStartDate(LocalDate startDate) {
-        this.startDate = startDate;
-    }
-
-    public LocalDate getEndDate() {
-        return endDate;
-    }
-
-    public void setEndDate(LocalDate endDate) {
-        this.endDate = endDate;
-    }
-
-    public String getReason() {
-        return reason;
-    }
-
-    public void setReason(String reason) {
-        this.reason = reason;
-    }
-
-    public SessionType getStartSession() {
-        return startSession;
-    }
-
-    public void setStartSession(SessionType startSession) {
-        this.startSession = startSession;
-    }
-
-    public SessionType getEndSession() {
-        return endSession;
-    }
-
-    public void setEndSession(SessionType endSession) {
-        this.endSession = endSession;
-    }
-
-    public LeaveStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(LeaveStatus status) {
-        this.status = status;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
-
-    public Set<LeaveStatusHistory> getStatusHistory() {
-        return statusHistory;
-    }
-
-    public void setStatusHistory(Set<LeaveStatusHistory> statusHistory) {
-        this.statusHistory = statusHistory;
-    }
-
-    
-}
-

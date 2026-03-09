@@ -1,6 +1,6 @@
 package com.aryan.springboot.leavemanagement.response;
 
-import com.aryan.springboot.leavemanagement.entity.LeaveStatus;
+import com.aryan.springboot.leavemanagement.entity.enums.LeaveStatus;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.time.LocalDateTime;

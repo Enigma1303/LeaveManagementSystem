@@ -3,7 +3,7 @@ package com.aryan.springboot.leavemanagement.service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import com.aryan.springboot.leavemanagement.entity.LeaveStatus;
+import com.aryan.springboot.leavemanagement.entity.enums.LeaveStatus;
 import com.aryan.springboot.leavemanagement.request.LeaveStatusRequest;
 import com.aryan.springboot.leavemanagement.request.LeaveSubmitRequest;
 import com.aryan.springboot.leavemanagement.response.LeaveStatusResponse;

@@ -1,6 +1,7 @@
 package com.aryan.springboot.leavemanagement.entity;
 
-import com.aryan.springboot.leavemanagement.entity.enums.LeaveStatus;
+import com.aryan.springboot.leavemanagement.entity.enums.AuditAction;
+import com.aryan.springboot.leavemanagement.entity.enums.AuditEntityType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -10,12 +11,12 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "leave_status_history")
+@Table(name = "audit_log")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class LeaveStatusHistory {
+public class AuditLog {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -23,23 +24,25 @@ public class LeaveStatusHistory {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "leave_id", nullable = false)
-    private LeaveRequest leaveRequest;
+    @JoinColumn(name = "actor_id", nullable = false)
+    private Employee actor;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "old_status")
-    private LeaveStatus oldStatus;
+    @Column(name = "entity_type", nullable = false)
+    private AuditEntityType entityType;
+
+    @Column(name = "entity_id", nullable = false)
+    private Long entityId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "new_status", nullable = false)
-    private LeaveStatus newStatus;
+    @Column(name = "action", nullable = false)
+    private AuditAction action;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "changed_by", nullable = false)
-    private Employee changedBy;
+    @Column(name = "old_value", columnDefinition = "TEXT")
+    private String oldValue;
 
-    @Column(name = "comment", columnDefinition = "TEXT")
-    private String comment;
+    @Column(name = "new_value", columnDefinition = "TEXT")
+    private String newValue;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
