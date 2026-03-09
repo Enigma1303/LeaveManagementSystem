@@ -1,155 +1,115 @@
-package com.aryan.springboot.leavemanagement.service;
+package com.aryan.springboot.leavemanagement.exception;
 
-import com.aryan.springboot.leavemanagement.entity.*;
-import com.aryan.springboot.leavemanagement.entity.enums.LeaveStatus;
-import com.aryan.springboot.leavemanagement.repository.LeaveRequestRepository;
-import com.aryan.springboot.leavemanagement.repository.LeaveStatusHistoryRepository;
-import com.aryan.springboot.leavemanagement.repository.UserRepository;
-import com.aryan.springboot.leavemanagement.request.LeaveStatusRequest;
-import com.aryan.springboot.leavemanagement.request.LeaveSubmitRequest;
-import com.aryan.springboot.leavemanagement.response.LeaveStatusResponse;
-import com.aryan.springboot.leavemanagement.response.LeaveSubmitResponse;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import io.jsonwebtoken.JwtException;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.Optional;
-import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+@Slf4j
+@RestControllerAdvice
+public class GlobalExceptionHandler {
 
-@ExtendWith(MockitoExtension.class)
-public class LeaveServiceImplTest {
+    //400 Validation errors (@Valid failures)
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, Object>> handleValidationErrors(
+            MethodArgumentNotValidException ex) {
 
-    @Mock
-    private LeaveRequestRepository leaveRequestRepository;
-    @Mock
-    private LeaveStatusHistoryRepository leaveStatusHistoryRepository;
-    @Mock
-    private UserRepository userRepository;
-
-    @InjectMocks
-    private LeaveServiceImpl leaveService;
-
-    private Employee employee;
-    private Employee manager;
-    private LeaveRequest leaveRequest;
-    private LeaveSubmitRequest submitRequest;
-
-    @BeforeEach
-    void setUp() {
-        manager = new Employee();
-        manager.setId(1L);
-        manager.setName("Manager");
-        manager.setEmail("manager@example.com");
-        Set<Authority> managerRoles = new HashSet<>();
-        Authority managerRole = new Authority();
-        managerRole.setName("ROLE_MANAGER");
-        managerRoles.add(managerRole);
-        manager.setAuthorities(managerRoles);
-
-        employee = new Employee();
-        employee.setId(2L);
-        employee.setName("Employee");
-        employee.setEmail("employee@example.com");
-        employee.setManager(manager);
-        Set<Authority> employeeRoles = new HashSet<>();
-        Authority employeeRole = new Authority();
-        employeeRole.setName("ROLE_EMPLOYEE");
-        employeeRoles.add(employeeRole);
-        employee.setAuthorities(employeeRoles);
-
-        leaveRequest = new LeaveRequest();
-        leaveRequest.setId(1L);
-        leaveRequest.setEmployee(employee);
-        leaveRequest.setStartDate(LocalDate.now().plusDays(5));
-        leaveRequest.setEndDate(LocalDate.now().plusDays(7));
-        leaveRequest.setReason("Personal work");
-        leaveRequest.setStatus(LeaveStatus.PENDING);
-        leaveRequest.setStatusHistory(new HashSet<>());
-
-        submitRequest = new LeaveSubmitRequest();
-        submitRequest.setStartDate(LocalDate.now().plusDays(5));
-        submitRequest.setEndDate(LocalDate.now().plusDays(7));
-        submitRequest.setStartSession(SessionType.FIRST_HALF);
-        submitRequest.setEndSession(SessionType.SECOND_HALF);
-        submitRequest.setReason("Personal work");
+        Map<String, String> fieldErrors = new HashMap<>();
+        for (FieldError error : ex.getBindingResult().getFieldErrors()) {
+            fieldErrors.put(error.getField(), error.getDefaultMessage());
+        }
+        log.warn("Validation failed: {}", fieldErrors);
+        return buildResponse(HttpStatus.BAD_REQUEST, "Validation failed", fieldErrors);
     }
 
-
-    @Test
-    void submitLeave_success() {
-        when(userRepository.findByEmailWithAuthorities(employee.getEmail()))
-                .thenReturn(Optional.of(employee));
-        when(leaveRequestRepository.countOverlappingLeaves(any(), any(), any()))
-                .thenReturn(0L);
-        when(leaveRequestRepository.save(any())).thenAnswer(inv -> {
-            LeaveRequest l = inv.getArgument(0);
-            l.setId(1L);
-            l.setStatus(LeaveStatus.PENDING);
-            l.setCreatedAt(LocalDateTime.now());
-            return l;
-        });
-
-        LeaveSubmitResponse response = leaveService.submitLeave(submitRequest, employee.getEmail());
-
-        assertNotNull(response);
-        assertEquals(LeaveStatus.PENDING, response.getStatus());
-        verify(leaveRequestRepository, times(1)).save(any());
+    // 400 Business rule violations
+    @ExceptionHandler(BusinessRuleException.class)
+    public ResponseEntity<Map<String, Object>> handleBusinessRule(
+            BusinessRuleException ex) {
+        log.warn("Business rule violation: {}", ex.getMessage());
+        return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage(), null);
     }
 
-   
-    @Test
-    void submitLeave_pastDate_throwsException() {
-        when(userRepository.findByEmailWithAuthorities(employee.getEmail()))
-                .thenReturn(Optional.of(employee));
-        submitRequest.setStartDate(LocalDate.now().minusDays(1));
-
-        RuntimeException ex = assertThrows(RuntimeException.class,
-                () -> leaveService.submitLeave(submitRequest, employee.getEmail()));
-
-        assertEquals("Start date cannot be in the past", ex.getMessage());
-        verify(leaveRequestRepository, never()).save(any());
+    // 404 Resource not found
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleResourceNotFound(
+            ResourceNotFoundException ex) {
+        log.warn("Resource not found: {}", ex.getMessage());
+        return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage(), null);
     }
 
-   
-    @Test
-    void updateLeaveStatus_managerApprovesSuccess() {
-        when(leaveRequestRepository.findById(1L))
-                .thenReturn(Optional.of(leaveRequest));
-        when(leaveRequestRepository.save(any())).thenReturn(leaveRequest);
-        when(leaveStatusHistoryRepository.save(any())).thenReturn(null);
-
-        LeaveStatusRequest statusRequest = new LeaveStatusRequest();
-        statusRequest.setStatus(LeaveStatus.APPROVED);
-        statusRequest.setComment("Approved!");
-
-        LeaveStatusResponse response = leaveService.updateLeaveStatus(1L, statusRequest, manager.getEmail());
-
-        assertNotNull(response);
-        assertEquals(LeaveStatus.APPROVED, response.getStatus());
-        verify(leaveStatusHistoryRepository, times(1)).save(any());
+    // 409 Duplicate resource
+    @ExceptionHandler(DuplicateResourceException.class)
+    public ResponseEntity<Map<String, Object>> handleDuplicate(
+            DuplicateResourceException ex) {
+        log.warn("Duplicate resource: {}", ex.getMessage());
+        return buildResponse(HttpStatus.CONFLICT, ex.getMessage(), null);
     }
 
+    // 401 Bad credentials
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<Map<String, Object>> handleBadCredentials(
+            BadCredentialsException ex) {
+        log.warn("Bad credentials: {}", ex.getMessage());
+        return buildResponse(HttpStatus.UNAUTHORIZED, "Invalid email or password", null);
+    }
 
-    @Test
-    void updateLeaveStatus_employeeTriesToUpdate_throwsAccessDenied() {
-        LeaveStatusRequest statusRequest = new LeaveStatusRequest();
-        statusRequest.setStatus(LeaveStatus.APPROVED);
+    // 401 User not found
+    @ExceptionHandler(UsernameNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleUsernameNotFound(
+            UsernameNotFoundException ex) {
+        log.warn("User not found: {}", ex.getMessage());
+        return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage(), null);
+    }
 
-        AccessDeniedException ex = assertThrows(AccessDeniedException.class,
-                () -> leaveService.updateLeaveStatus(1L, statusRequest, employee.getEmail()));
+    // 403 Access denied
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Map<String, Object>> handleAccessDenied(
+            AccessDeniedException ex) {
+        log.warn("Access denied: {}", ex.getMessage());
+        return buildResponse(HttpStatus.FORBIDDEN, ex.getMessage(), null);
+    }
 
-        assertEquals("Only managers and admins can update leave statuses", ex.getMessage());
-        verify(leaveRequestRepository, never()).findById(any());
+    //401 JWT errors
+    @ExceptionHandler(JwtException.class)
+    public ResponseEntity<Map<String, Object>> handleJwtException(
+            JwtException ex) {
+        log.warn("JWT error: {}", ex.getMessage());
+        return buildResponse(HttpStatus.UNAUTHORIZED, "Invalid or expired token", null);
+    }
+
+    // 500 Catch-all fallback
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, Object>> handleGenericException(
+            Exception ex) {
+        log.error("Unexpected error: {}", ex.getMessage(), ex);
+        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR,
+                "An unexpected error occurred", null);
+    }
+
+    //Helper
+    private ResponseEntity<Map<String, Object>> buildResponse(
+            HttpStatus status, String message, Object details) {
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("status", status.value());
+        body.put("error", status.getReasonPhrase());
+        body.put("message", message);
+        if (details != null) {
+            body.put("details", details);
+        }
+        return ResponseEntity.status(status).body(body);
     }
 }

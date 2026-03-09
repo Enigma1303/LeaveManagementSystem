@@ -7,6 +7,8 @@ import com.aryan.springboot.leavemanagement.entity.Employee;
 import com.aryan.springboot.leavemanagement.entity.enums.ApprovalStage;
 import com.aryan.springboot.leavemanagement.entity.enums.LeaveStatus;
 import com.aryan.springboot.leavemanagement.entity.enums.Session;
+import com.aryan.springboot.leavemanagement.exception.BusinessRuleException;
+import com.aryan.springboot.leavemanagement.exception.ResourceNotFoundException;
 import com.aryan.springboot.leavemanagement.repository.LeaveRequestRepository;
 import com.aryan.springboot.leavemanagement.repository.LeaveStatusHistoryRepository;
 import com.aryan.springboot.leavemanagement.repository.LeaveTypeRepository;
@@ -29,6 +31,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -54,10 +57,7 @@ public class LeaveServiceImpl implements LeaveService {
 
     private Employee getUser(String email) {
         return userRepository.findByEmailWithAuthorities(email)
-                .orElseThrow(() -> {
-                    log.error("User not found for email: {}", email);
-                    return new RuntimeException("User not found: " + email);
-                });
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + email));
     }
 
     private boolean hasRole(Employee user, String role) {
@@ -76,24 +76,15 @@ public class LeaveServiceImpl implements LeaveService {
 
         int units = 0;
         LocalDate current = startDate;
-
         while (!current.isAfter(endDate)) {
             java.time.DayOfWeek dow = current.getDayOfWeek();
             boolean isWeekend = (dow == java.time.DayOfWeek.SATURDAY
                     || dow == java.time.DayOfWeek.SUNDAY);
-
             if (!isWeekend) {
-                if (current.isEqual(startDate)) {
-                    units += 1;
-                } else if (current.isEqual(endDate)) {
-                    units += 1;
-                } else {
-                    units += 2;
-                }
+                units += 2;
             }
             current = current.plusDays(1);
         }
-
         return (int) Math.ceil(units / 2.0);
     }
 
@@ -104,20 +95,22 @@ public class LeaveServiceImpl implements LeaveService {
         Employee employee = getUser(email);
 
         LeaveType leaveType = leaveTypeRepository.findById(request.getLeaveTypeId())
-                .orElseThrow(() -> new RuntimeException(
+                .orElseThrow(() -> new ResourceNotFoundException(
                         "Leave type not found for id: " + request.getLeaveTypeId()));
 
         if (!leaveType.getIsActive()) {
-            throw new RuntimeException("Leave type '" + leaveType.getName() + "' is not active");
+            throw new BusinessRuleException(
+                    "Leave type '" + leaveType.getName() + "' is not active");
         }
 
         if (request.getEndDate().isBefore(request.getStartDate())) {
-            throw new RuntimeException("End date cannot be before start date");
+            throw new BusinessRuleException("End date cannot be before start date");
         }
+
         if (request.getStartDate().isEqual(request.getEndDate())) {
             if (request.getStartSession() == Session.SECOND_HALF
                     && request.getEndSession() == Session.FIRST_HALF) {
-                throw new RuntimeException(
+                throw new BusinessRuleException(
                         "End session cannot be FIRST_HALF when start session is SECOND_HALF on the same day");
             }
         }
@@ -125,9 +118,7 @@ public class LeaveServiceImpl implements LeaveService {
         long daysUntilStart = java.time.temporal.ChronoUnit.DAYS.between(
                 LocalDate.now(), request.getStartDate());
         if (daysUntilStart < leaveType.getMinAdvanceNoticeDays()) {
-            log.warn("Advance notice check failed for user: {} - required {} days, submitted {} days before",
-                    email, leaveType.getMinAdvanceNoticeDays(), daysUntilStart);
-            throw new RuntimeException(
+            throw new BusinessRuleException(
                     "Leave request must be submitted at least "
                             + leaveType.getMinAdvanceNoticeDays()
                             + " day(s) in advance. You submitted "
@@ -139,7 +130,7 @@ public class LeaveServiceImpl implements LeaveService {
                 request.getStartSession(), request.getEndSession());
 
         if (requestedUnits > leaveType.getMaxUnitsPerRequest()) {
-            throw new RuntimeException(
+            throw new BusinessRuleException(
                     "Requested units (" + requestedUnits + ") exceed the maximum allowed ("
                             + leaveType.getMaxUnitsPerRequest() + ") for leave type '"
                             + leaveType.getName() + "'");
@@ -149,7 +140,7 @@ public class LeaveServiceImpl implements LeaveService {
                 employee.getId(), request.getStartDate(), request.getEndDate(),
                 LeaveStatus.REJECTED);
         if (overlappingCount > 0) {
-            throw new RuntimeException(
+            throw new BusinessRuleException(
                     "You already have a leave request overlapping with the selected dates");
         }
 
@@ -158,8 +149,6 @@ public class LeaveServiceImpl implements LeaveService {
                 employee.getId(), leaveType.getId(), year, requestedUnits);
         leaveBalanceService.lockPendingUnits(
                 employee.getId(), leaveType.getId(), year, requestedUnits);
-
-        boolean isMultiLevel = Boolean.TRUE.equals(leaveType.getIsMultiLevelApproval());
 
         LeaveRequest leave = new LeaveRequest();
         leave.setEmployee(employee);
@@ -172,7 +161,7 @@ public class LeaveServiceImpl implements LeaveService {
         leave.setRequestedUnits(requestedUnits);
         leave.setStatus(LeaveStatus.PENDING);
         leave.setApprovalStage(ApprovalStage.MANAGER);
-        leave.setIsMultiLevel(isMultiLevel);
+        leave.setIsMultiLevel(Boolean.TRUE.equals(leaveType.getIsMultiLevelApproval()));
 
         LeaveRequest saved = leaveRequestRepository.save(leave);
 
@@ -184,7 +173,7 @@ public class LeaveServiceImpl implements LeaveService {
         history.setComment("Leave submitted");
         leaveStatusHistoryRepository.save(history);
 
-        log.info("Leave submitted successfully - id: {} by: {} units: {}", saved.getId(), email, requestedUnits);
+        log.info("Leave submitted - id: {} by: {} units: {}", saved.getId(), email, requestedUnits);
         return new LeaveSubmitResponse(saved.getId(), saved.getStatus(), saved.getCreatedAt());
     }
 
@@ -193,7 +182,7 @@ public class LeaveServiceImpl implements LeaveService {
                                              Long managerId, LocalDate startDate, LocalDate endDate,
                                              LocalDateTime createdAt, String search) {
 
-        log.info("Fetching leaves for: {} with filters", email);
+        log.info("Fetching leaves for: {}", email);
         Employee user = getUser(email);
         List<LeaveRequest> leaves = new ArrayList<>();
 
@@ -233,13 +222,14 @@ public class LeaveServiceImpl implements LeaveService {
                                         h.getChangedBy().getName(),
                                         h.getCreatedAt()))
                                 .toList()))
-                .collect(java.util.stream.Collectors.toList());
+                .collect(Collectors.toList());
         return result;
     }
 
     @Transactional
     @Override
-    public LeaveStatusResponse updateLeaveStatus(Long leaveId, LeaveStatusRequest request, String email) {
+    public LeaveStatusResponse updateLeaveStatus(Long leaveId, LeaveStatusRequest request,
+                                                 String email) {
         log.info("Leave status update requested for leaveId: {} by: {}", leaveId, email);
 
         Employee user = getUser(email);
@@ -249,18 +239,18 @@ public class LeaveServiceImpl implements LeaveService {
         }
 
         LeaveRequest leave = leaveRequestRepository.findById(leaveId)
-                .orElseThrow(() -> new RuntimeException(
-                        "No such Leave Request found in the database"));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Leave request not found for id: " + leaveId));
 
         if (hasRole(user, "ROLE_MANAGER") && !hasRole(user, "ROLE_ADMIN")) {
-            // If the leave belongs to an employee with no manager, only admin can approve
             if (leave.getEmployee().getManager() == null) {
                 throw new AccessDeniedException(
                         "This employee has no manager assigned. Only Admin can approve this leave.");
             }
             boolean isSubordinate = leave.getEmployee().getManager().getId().equals(user.getId());
             if (!isSubordinate) {
-                throw new AccessDeniedException("You can only update leaves of employees under you");
+                throw new AccessDeniedException(
+                        "You can only update leaves of employees under you");
             }
         }
 
@@ -275,14 +265,13 @@ public class LeaveServiceImpl implements LeaveService {
 
         Set<LeaveStatus> allowed = validTransitions.getOrDefault(currentStatus, Set.of());
         if (!allowed.contains(newStatus)) {
-            throw new RuntimeException(
+            throw new BusinessRuleException(
                     "Cannot transition leave from " + currentStatus + " to " + newStatus);
         }
 
         if (hasRole(user, "ROLE_MANAGER") && !hasRole(user, "ROLE_ADMIN")) {
             if (currentStatus != LeaveStatus.PENDING) {
-                throw new AccessDeniedException(
-                        "Managers can only act on PENDING leaves");
+                throw new AccessDeniedException("Managers can only act on PENDING leaves");
             }
         }
 
@@ -311,10 +300,8 @@ public class LeaveServiceImpl implements LeaveService {
 
         if (newStatus == LeaveStatus.APPROVED) {
             leaveBalanceService.deductOnApproval(empId, ltId, year, units);
-            log.info("Balance deducted on approval for leaveId: {}", leaveId);
         } else if (newStatus == LeaveStatus.REJECTED) {
             leaveBalanceService.releasePendingUnits(empId, ltId, year, units);
-            log.info("Balance released on rejection for leaveId: {}", leaveId);
         }
 
         LeaveStatusHistory history = new LeaveStatusHistory();
@@ -325,7 +312,9 @@ public class LeaveServiceImpl implements LeaveService {
         history.setChangedBy(user);
         leaveStatusHistoryRepository.save(history);
 
-        log.info("Leave {} status updated from {} to {} by: {}", leaveId, currentStatus, newStatus, email);
+        log.info("Leave {} updated from {} to {} by: {}", leaveId, currentStatus, newStatus, email);
         return new LeaveStatusResponse(saved.getId(), saved.getStatus(), saved.getUpdatedAt());
     }
 }
+
+

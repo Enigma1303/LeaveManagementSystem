@@ -1,6 +1,9 @@
 package com.aryan.springboot.leavemanagement.service;
 
 import com.aryan.springboot.leavemanagement.entity.LeaveType;
+import com.aryan.springboot.leavemanagement.exception.BusinessRuleException;
+import com.aryan.springboot.leavemanagement.exception.DuplicateResourceException;
+import com.aryan.springboot.leavemanagement.exception.ResourceNotFoundException;
 import com.aryan.springboot.leavemanagement.repository.LeaveTypeRepository;
 import com.aryan.springboot.leavemanagement.request.LeaveTypeRequest;
 import com.aryan.springboot.leavemanagement.response.LeaveTypeResponse;
@@ -23,42 +26,33 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
     private void validateRequest(LeaveTypeRequest request) {
         if (Boolean.TRUE.equals(request.getIsMultiLevelApproval())
                 && request.getMultiLevelTriggerUnits() == null) {
-            throw new RuntimeException(
+            throw new BusinessRuleException(
                     "multiLevelTriggerUnits is required when isMultiLevelApproval is true");
         }
         if (Boolean.FALSE.equals(request.getIsMultiLevelApproval())
                 && request.getMultiLevelTriggerUnits() != null) {
-            throw new RuntimeException(
+            throw new BusinessRuleException(
                     "multiLevelTriggerUnits must not be set when isMultiLevelApproval is false");
         }
     }
 
     private LeaveTypeResponse toResponse(LeaveType lt) {
         return new LeaveTypeResponse(
-                lt.getId(),
-                lt.getName(),
-                lt.getMaxUnitsPerRequest(),
-                lt.getMinAdvanceNoticeDays(),
-                lt.getIsMultiLevelApproval(),
-                lt.getMultiLevelTriggerUnits(),
-                lt.getReminderThresholdDays(),
-                lt.getIsActive(),
-                lt.getCreatedAt(),
-                lt.getUpdatedAt()
-        );
+                lt.getId(), lt.getName(), lt.getMaxUnitsPerRequest(),
+                lt.getMinAdvanceNoticeDays(), lt.getIsMultiLevelApproval(),
+                lt.getMultiLevelTriggerUnits(), lt.getReminderThresholdDays(),
+                lt.getIsActive(), lt.getCreatedAt(), lt.getUpdatedAt());
     }
 
     @Transactional
     @Override
     public LeaveTypeResponse createLeaveType(LeaveTypeRequest request) {
         log.info("Creating leave type: {}", request.getName());
-
         if (leaveTypeRepository.existsByName(request.getName())) {
-            throw new RuntimeException("Leave type with name '" + request.getName() + "' already exists");
+            throw new DuplicateResourceException(
+                    "Leave type with name '" + request.getName() + "' already exists");
         }
-
         validateRequest(request);
-
         LeaveType leaveType = new LeaveType();
         leaveType.setName(request.getName());
         leaveType.setMaxUnitsPerRequest(request.getMaxUnitsPerRequest());
@@ -67,7 +61,6 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
         leaveType.setMultiLevelTriggerUnits(request.getMultiLevelTriggerUnits());
         leaveType.setReminderThresholdDays(request.getReminderThresholdDays());
         leaveType.setIsActive(true);
-
         LeaveType saved = leaveTypeRepository.save(leaveType);
         log.info("Leave type created with id: {}", saved.getId());
         return toResponse(saved);
@@ -77,25 +70,21 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
     @Override
     public LeaveTypeResponse updateLeaveType(Long id, LeaveTypeRequest request) {
         log.info("Updating leave type id: {}", id);
-
         LeaveType leaveType = leaveTypeRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Leave type not found for id: " + id));
-
-        // Okay so -> Allow name update only if not taken by another record
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Leave type not found for id: " + id));
         if (!leaveType.getName().equals(request.getName())
                 && leaveTypeRepository.existsByName(request.getName())) {
-            throw new RuntimeException("Leave type with name '" + request.getName() + "' already exists");
+            throw new DuplicateResourceException(
+                    "Leave type with name '" + request.getName() + "' already exists");
         }
-
         validateRequest(request);
-
         leaveType.setName(request.getName());
         leaveType.setMaxUnitsPerRequest(request.getMaxUnitsPerRequest());
         leaveType.setMinAdvanceNoticeDays(request.getMinAdvanceNoticeDays());
         leaveType.setIsMultiLevelApproval(request.getIsMultiLevelApproval());
         leaveType.setMultiLevelTriggerUnits(request.getMultiLevelTriggerUnits());
         leaveType.setReminderThresholdDays(request.getReminderThresholdDays());
-
         LeaveType saved = leaveTypeRepository.save(leaveType);
         log.info("Leave type updated: {}", saved.getId());
         return toResponse(saved);
@@ -105,10 +94,9 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
     @Override
     public LeaveTypeResponse deactivateLeaveType(Long id) {
         log.info("Deactivating leave type id: {}", id);
-
         LeaveType leaveType = leaveTypeRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Leave type not found for id: " + id));
-
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Leave type not found for id: " + id));
         leaveType.setIsActive(false);
         LeaveType saved = leaveTypeRepository.save(leaveType);
         log.info("Leave type deactivated: {}", saved.getId());
@@ -127,8 +115,8 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
 
     @Override
     public LeaveTypeResponse getLeaveTypeById(Long id) {
-        LeaveType leaveType = leaveTypeRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Leave type not found for id: " + id));
-        return toResponse(leaveType);
+        return toResponse(leaveTypeRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Leave type not found for id: " + id)));
     }
 }

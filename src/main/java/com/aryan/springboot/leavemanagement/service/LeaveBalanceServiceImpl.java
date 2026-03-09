@@ -2,6 +2,8 @@ package com.aryan.springboot.leavemanagement.service;
 
 import com.aryan.springboot.leavemanagement.entity.Employee;
 import com.aryan.springboot.leavemanagement.entity.LeaveBalance;
+import com.aryan.springboot.leavemanagement.exception.BusinessRuleException;
+import com.aryan.springboot.leavemanagement.exception.ResourceNotFoundException;
 import com.aryan.springboot.leavemanagement.repository.LeaveBalanceRepository;
 import com.aryan.springboot.leavemanagement.repository.UserRepository;
 import com.aryan.springboot.leavemanagement.response.LeaveBalanceResponse;
@@ -44,7 +46,7 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
     private LeaveBalance getBalance(Long employeeId, Long leaveTypeId, Integer year) {
         return leaveBalanceRepository
                 .findByEmployeeIdAndLeaveTypeIdAndYear(employeeId, leaveTypeId, year)
-                .orElseThrow(() -> new RuntimeException(
+                .orElseThrow(() -> new ResourceNotFoundException(
                         "No leave balance found for employeeId=" + employeeId
                                 + ", leaveTypeId=" + leaveTypeId + ", year=" + year));
     }
@@ -52,10 +54,9 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
     @Override
     public List<LeaveBalanceResponse> getMyBalances(String email, Integer year) {
         Employee employee = userRepository.findByEmailWithAuthorities(email)
-                .orElseThrow(() -> new RuntimeException("User not found: " + email));
-
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "User not found: " + email));
         int targetYear = (year != null) ? year : java.time.Year.now().getValue();
-
         log.info("Fetching balances for employee: {} year: {}", email, targetYear);
         return leaveBalanceRepository
                 .findByEmployeeIdAndYear(employee.getId(), targetYear)
@@ -80,12 +81,13 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
     }
 
     @Override
-    public void checkAvailableBalance(Long employeeId, Long leaveTypeId, Integer year, Integer requestedUnits) {
+    public void checkAvailableBalance(Long employeeId, Long leaveTypeId, Integer year,
+                                      Integer requestedUnits) {
         LeaveBalance balance = getBalance(employeeId, leaveTypeId, year);
         if (balance.getAvailableUnits() < requestedUnits) {
-            log.warn("Insufficient balance for employeeId={} leaveTypeId={} year={} - available={} requested={}",
-                    employeeId, leaveTypeId, year, balance.getAvailableUnits(), requestedUnits);
-            throw new RuntimeException(
+            log.warn("Insufficient balance for employeeId={} - available={} requested={}",
+                    employeeId, balance.getAvailableUnits(), requestedUnits);
+            throw new BusinessRuleException(
                     "Insufficient leave balance. Available: " + balance.getAvailableUnits()
                             + ", Requested: " + requestedUnits);
         }
@@ -97,8 +99,7 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
         LeaveBalance balance = getBalance(employeeId, leaveTypeId, year);
         balance.setPendingUnits(balance.getPendingUnits() + units);
         leaveBalanceRepository.save(balance);
-        log.info("Locked {} pending units for employeeId={} leaveTypeId={} year={}",
-                units, employeeId, leaveTypeId, year);
+        log.info("Locked {} pending units for employeeId={}", units, employeeId);
     }
 
     @Transactional
@@ -107,19 +108,16 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
         LeaveBalance balance = getBalance(employeeId, leaveTypeId, year);
         balance.setPendingUnits(Math.max(0, balance.getPendingUnits() - units));
         leaveBalanceRepository.save(balance);
-        log.info("Released {} pending units for employeeId={} leaveTypeId={} year={}",
-                units, employeeId, leaveTypeId, year);
+        log.info("Released {} pending units for employeeId={}", units, employeeId);
     }
 
     @Transactional
     @Override
     public void deductOnApproval(Long employeeId, Long leaveTypeId, Integer year, Integer units) {
         LeaveBalance balance = getBalance(employeeId, leaveTypeId, year);
-        // Move from pending → used
         balance.setPendingUnits(Math.max(0, balance.getPendingUnits() - units));
         balance.setUsedUnits(balance.getUsedUnits() + units);
         leaveBalanceRepository.save(balance);
-        log.info("Deducted {} units on approval for employeeId={} leaveTypeId={} year={}",
-                units, employeeId, leaveTypeId, year);
+        log.info("Deducted {} units on approval for employeeId={}", units, employeeId);
     }
 }
