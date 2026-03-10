@@ -6,6 +6,7 @@ import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
 import com.aryan.springboot.leavemanagement.entity.LeaveRequest;
 import com.aryan.springboot.leavemanagement.entity.enums.LeaveStatus;
 
@@ -60,6 +61,7 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long
          @Param("createdAt") LocalDateTime createdAt,
          @Param("search") String search);
 
+ // Count overlapping leaves
  @Query("SELECT COUNT(l) FROM LeaveRequest l WHERE l.employee.id = :employeeId " +
          "AND l.status != :excludedStatus " +
          "AND l.startDate <= :endDate AND l.endDate >= :startDate")
@@ -68,4 +70,12 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long
          @Param("startDate") LocalDate startDate,
          @Param("endDate") LocalDate endDate,
          @Param("excludedStatus") LeaveStatus excludedStatus);
+
+ // Pending leave reminder query
+ @Query("""
+SELECT l FROM LeaveRequest l
+WHERE l.status = com.aryan.springboot.leavemanagement.entity.enums.LeaveStatus.PENDING
+AND l.startDate <= :threshold
+""")
+ List<LeaveRequest> findPendingLeavesForReminder(@Param("threshold") LocalDate threshold);
 }

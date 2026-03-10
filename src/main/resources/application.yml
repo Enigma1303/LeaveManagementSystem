@@ -28,6 +28,16 @@ spring:
     secret: ${JWT_SECRET}
     expiration: ${JWT_EXPIRATION}
 
+  notification:
+    retry:
+      max-attempts: 3
+      interval-seconds: 30
+      backoff-multiplier: 2
+
+  leave:
+    reminder:
+      days-before-start: 2
+
 springdoc:
   swagger-ui:
     path: /docs
