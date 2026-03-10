@@ -6,12 +6,9 @@ import java.util.List;
 
 public interface LeaveBalanceService {
 
-
     List<LeaveBalanceResponse> getMyBalances(String email, Integer year);
 
-
     List<LeaveBalanceResponse> getAllBalances(Integer year);
-
 
     List<LeaveBalanceResponse> getBalancesByEmployeeId(Long employeeId, Integer year);
 
@@ -20,6 +17,8 @@ public interface LeaveBalanceService {
     void releasePendingUnits(Long employeeId, Long leaveTypeId, Integer year, Integer units);
 
     void deductOnApproval(Long employeeId, Long leaveTypeId, Integer year, Integer units);
+
+    void restoreUsedUnits(Long employeeId, Long leaveTypeId, Integer year, Integer units);
 
     void checkAvailableBalance(Long employeeId, Long leaveTypeId, Integer year, Integer requestedUnits);
 }

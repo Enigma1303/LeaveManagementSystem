@@ -51,6 +51,7 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
                                 + ", leaveTypeId=" + leaveTypeId + ", year=" + year));
     }
 
+    @Transactional(readOnly = true)
     @Override
     public List<LeaveBalanceResponse> getMyBalances(String email, Integer year) {
         Employee employee = userRepository.findByEmailWithAuthorities(email)
@@ -63,6 +64,7 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
                 .stream().map(this::toResponse).toList();
     }
 
+    @Transactional(readOnly = true)
     @Override
     public List<LeaveBalanceResponse> getAllBalances(Integer year) {
         int targetYear = (year != null) ? year : java.time.Year.now().getValue();
@@ -71,6 +73,7 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
                 .stream().map(this::toResponse).toList();
     }
 
+    @Transactional(readOnly = true)
     @Override
     public List<LeaveBalanceResponse> getBalancesByEmployeeId(Long employeeId, Integer year) {
         int targetYear = (year != null) ? year : java.time.Year.now().getValue();
@@ -109,6 +112,15 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
         balance.setPendingUnits(Math.max(0, balance.getPendingUnits() - units));
         leaveBalanceRepository.save(balance);
         log.info("Released {} pending units for employeeId={}", units, employeeId);
+    }
+
+    @Transactional
+    @Override
+    public void restoreUsedUnits(Long employeeId, Long leaveTypeId, Integer year, Integer units) {
+        LeaveBalance balance = getBalance(employeeId, leaveTypeId, year);
+        balance.setUsedUnits(Math.max(0, balance.getUsedUnits() - units));
+        leaveBalanceRepository.save(balance);
+        log.info("Restored {} used units on cancellation for employeeId={}", units, employeeId);
     }
 
     @Transactional

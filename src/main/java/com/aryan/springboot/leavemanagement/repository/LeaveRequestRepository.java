@@ -19,10 +19,15 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long
                  "AND (:search IS NULL OR LOWER(l.reason) LIKE LOWER(CONCAT('%', :search, '%')) " +
                  "OR LOWER(l.employee.name) LIKE LOWER(CONCAT('%', :search, '%'))) ";
 
- String BASE_QUERY = "SELECT l FROM LeaveRequest l LEFT JOIN FETCH l.statusHistory ";
+ // JOIN FETCH employee, leaveType and statusHistory to avoid N+1 and lazy loading
+ String BASE_QUERY = "SELECT l FROM LeaveRequest l " +
+         "JOIN FETCH l.employee e " +
+         "JOIN FETCH l.leaveType lt " +
+         "LEFT JOIN FETCH l.statusHistory ";
+
  String ORDER_BY = "ORDER BY l.createdAt DESC ";
 
- @Query(BASE_QUERY + "WHERE l.employee.id = :employeeId " + COMMON_FILTERS + ORDER_BY)
+ @Query(BASE_QUERY + "WHERE e.id = :employeeId " + COMMON_FILTERS + ORDER_BY)
  List<LeaveRequest> findByEmployeeIdWithFilters(
          @Param("employeeId") Long employeeId,
          @Param("status") LeaveStatus status,
@@ -31,7 +36,7 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long
          @Param("createdAt") LocalDateTime createdAt,
          @Param("search") String search);
 
- @Query(BASE_QUERY + "WHERE l.employee.manager.id = :managerId " + COMMON_FILTERS + ORDER_BY)
+ @Query(BASE_QUERY + "WHERE e.manager.id = :managerId " + COMMON_FILTERS + ORDER_BY)
  List<LeaveRequest> findByManagerIdWithFilters(
          @Param("managerId") Long managerId,
          @Param("status") LeaveStatus status,
@@ -40,8 +45,9 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long
          @Param("createdAt") LocalDateTime createdAt,
          @Param("search") String search);
 
- @Query(BASE_QUERY + "WHERE (:employeeId IS NULL OR l.employee.id = :employeeId) " +
-         "AND (:managerId IS NULL OR l.employee.manager.id = :managerId) " + COMMON_FILTERS + ORDER_BY)
+ @Query(BASE_QUERY +
+         "WHERE (:employeeId IS NULL OR e.id = :employeeId) " +
+         "AND (:managerId IS NULL OR e.manager.id = :managerId) " + COMMON_FILTERS + ORDER_BY)
  List<LeaveRequest> findAllWithFilters(
          @Param("status") LeaveStatus status,
          @Param("employeeId") Long employeeId,
