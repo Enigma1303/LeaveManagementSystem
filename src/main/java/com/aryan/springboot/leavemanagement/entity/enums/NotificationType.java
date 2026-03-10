@@ -5,5 +5,6 @@ public enum NotificationType {
     APPROVED,
     REJECTED,
     CANCELLED,
-    REMINDER
+    REMINDER,
+    MANAGER_APPROVED
 }

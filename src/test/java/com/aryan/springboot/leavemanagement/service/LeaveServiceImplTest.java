@@ -1,19 +1,21 @@
 package com.aryan.springboot.leavemanagement.service;
 
+import com.aryan.springboot.leavemanagement.entity.Employee;
+import com.aryan.springboot.leavemanagement.entity.LeaveBalance;
 import com.aryan.springboot.leavemanagement.entity.LeaveRequest;
 import com.aryan.springboot.leavemanagement.entity.LeaveStatusHistory;
 import com.aryan.springboot.leavemanagement.entity.LeaveType;
-import com.aryan.springboot.leavemanagement.entity.Employee;
 import com.aryan.springboot.leavemanagement.entity.enums.ApprovalStage;
 import com.aryan.springboot.leavemanagement.entity.enums.LeaveStatus;
 import com.aryan.springboot.leavemanagement.entity.enums.Session;
 import com.aryan.springboot.leavemanagement.exception.BusinessRuleException;
 import com.aryan.springboot.leavemanagement.exception.ResourceNotFoundException;
+import com.aryan.springboot.leavemanagement.repository.LeaveBalanceRepository;
 import com.aryan.springboot.leavemanagement.repository.LeaveRequestRepository;
 import com.aryan.springboot.leavemanagement.repository.LeaveStatusHistoryRepository;
 import com.aryan.springboot.leavemanagement.repository.LeaveTypeRepository;
 import com.aryan.springboot.leavemanagement.repository.UserRepository;
-import com.aryan.springboot.leavemanagement.request.LeaveStatusRequest;
+import com.aryan.springboot.leavemanagement.request.LeaveActionRequest;
 import com.aryan.springboot.leavemanagement.request.LeaveSubmitRequest;
 import com.aryan.springboot.leavemanagement.response.LeaveHistoryResponse;
 import com.aryan.springboot.leavemanagement.response.LeaveStatusResponse;
@@ -23,14 +25,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -41,18 +43,24 @@ public class LeaveServiceImpl implements LeaveService {
     private final LeaveStatusHistoryRepository leaveStatusHistoryRepository;
     private final LeaveTypeRepository leaveTypeRepository;
     private final LeaveBalanceService leaveBalanceService;
+    private final LeaveBalanceRepository leaveBalanceRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     public LeaveServiceImpl(LeaveRequestRepository leaveRequestRepository,
                             LeaveStatusHistoryRepository leaveStatusHistoryRepository,
                             LeaveTypeRepository leaveTypeRepository,
                             LeaveBalanceService leaveBalanceService,
-                            UserRepository userRepository) {
+                            LeaveBalanceRepository leaveBalanceRepository,
+                            UserRepository userRepository,
+                            NotificationService notificationService) {
         this.leaveRequestRepository = leaveRequestRepository;
         this.leaveStatusHistoryRepository = leaveStatusHistoryRepository;
         this.leaveTypeRepository = leaveTypeRepository;
         this.leaveBalanceService = leaveBalanceService;
+        this.leaveBalanceRepository = leaveBalanceRepository;
         this.userRepository = userRepository;
+        this.notificationService = notificationService;
     }
 
     private Employee getUser(String email) {
@@ -64,16 +72,38 @@ public class LeaveServiceImpl implements LeaveService {
         return user.getAuthorities().stream().anyMatch(a -> a.getName().equals(role));
     }
 
+    private LeaveRequest getLeave(Long leaveId) {
+        return leaveRequestRepository.findById(leaveId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Leave request not found for id: " + leaveId));
+    }
+
+    private void writeHistory(LeaveRequest leave, LeaveStatus oldStatus,
+                              LeaveStatus newStatus, String comment, Employee changedBy) {
+        LeaveStatusHistory history = new LeaveStatusHistory();
+        history.setLeaveRequest(leave);
+        history.setOldStatus(oldStatus);
+        history.setNewStatus(newStatus);
+        history.setComment(comment);
+        history.setChangedBy(changedBy);
+        leaveStatusHistoryRepository.save(history);
+    }
+
+    private void checkIsSubordinate(Employee manager, LeaveRequest leave) {
+        if (leave.getEmployee().getManager() == null) {
+            throw new AccessDeniedException(
+                    "This employee has no manager assigned. Only Admin can approve this leave.");
+        }
+        if (!leave.getEmployee().getManager().getId().equals(manager.getId())) {
+            throw new AccessDeniedException("You can only act on leaves of your subordinates");
+        }
+    }
+
     private int computeRequestedUnits(LocalDate startDate, LocalDate endDate,
                                       Session startSession, Session endSession) {
-
         if (startDate.isEqual(endDate)) {
-            if (startSession == Session.FIRST_HALF && endSession == Session.SECOND_HALF) {
-                return 1;
-            }
             return 1;
         }
-
         int units = 0;
         LocalDate current = startDate;
         while (!current.isAfter(endDate)) {
@@ -87,6 +117,47 @@ public class LeaveServiceImpl implements LeaveService {
         }
         return (int) Math.ceil(units / 2.0);
     }
+
+    // Builds NotificationDto from a LeaveRequest.
+    // Called after every status change to pass to NotificationService.
+
+    private NotificationDto buildDto(LeaveRequest leave) {
+        Employee emp     = leave.getEmployee();
+        Employee manager = emp.getManager();
+        Employee admin   = userRepository.findByRole("ROLE_ADMIN").orElse(null);
+
+        Integer remaining = leaveBalanceRepository
+                .findByEmployeeIdAndLeaveTypeIdAndYear(
+                        emp.getId(),
+                        leave.getLeaveType().getId(),
+                        leave.getStartDate().getYear())
+                .map(b -> b.getAllocatedUnits() - b.getUsedUnits() - b.getPendingUnits())
+                .orElse(null);
+
+        return new NotificationDto(
+                leave.getId(),
+                leave.getStartDate(),
+                leave.getEndDate(),
+                leave.getRequestedUnits(),
+                leave.getReason(),
+                leave.getRejectionReason(),
+                leave.getStatus(),
+                leave.getApprovalStage(),
+                leave.getLeaveType().getName(),
+                emp.getId(),
+                emp.getName(),
+                emp.getEmail(),
+                manager != null ? manager.getId()    : null,
+                manager != null ? manager.getName()  : null,
+                manager != null ? manager.getEmail() : null,
+                admin   != null ? admin.getId()      : null,
+                admin   != null ? admin.getName()    : null,
+                admin   != null ? admin.getEmail()   : null,
+                remaining
+        );
+    }
+
+    // Submit Leave 
 
     @Transactional
     @Override
@@ -111,7 +182,7 @@ public class LeaveServiceImpl implements LeaveService {
             if (request.getStartSession() == Session.SECOND_HALF
                     && request.getEndSession() == Session.FIRST_HALF) {
                 throw new BusinessRuleException(
-                        "End session cannot be FIRST_HALF when start session is SECOND_HALF on the same day");
+                        "End session cannot be FIRST_HALF when start session is SECOND_HALF on same day");
             }
         }
 
@@ -119,10 +190,9 @@ public class LeaveServiceImpl implements LeaveService {
                 LocalDate.now(), request.getStartDate());
         if (daysUntilStart < leaveType.getMinAdvanceNoticeDays()) {
             throw new BusinessRuleException(
-                    "Leave request must be submitted at least "
-                            + leaveType.getMinAdvanceNoticeDays()
-                            + " day(s) in advance. You submitted "
-                            + daysUntilStart + " day(s) before the start date.");
+                    "Leave must be submitted at least " + leaveType.getMinAdvanceNoticeDays()
+                            + " day(s) in advance. You submitted " + daysUntilStart
+                            + " day(s) before start date.");
         }
 
         int requestedUnits = computeRequestedUnits(
@@ -131,8 +201,8 @@ public class LeaveServiceImpl implements LeaveService {
 
         if (requestedUnits > leaveType.getMaxUnitsPerRequest()) {
             throw new BusinessRuleException(
-                    "Requested units (" + requestedUnits + ") exceed the maximum allowed ("
-                            + leaveType.getMaxUnitsPerRequest() + ") for leave type '"
+                    "Requested units (" + requestedUnits + ") exceed maximum allowed ("
+                            + leaveType.getMaxUnitsPerRequest() + ") for '"
                             + leaveType.getName() + "'");
         }
 
@@ -141,7 +211,7 @@ public class LeaveServiceImpl implements LeaveService {
                 LeaveStatus.REJECTED);
         if (overlappingCount > 0) {
             throw new BusinessRuleException(
-                    "You already have a leave request overlapping with the selected dates");
+                    "You already have a leave request overlapping with selected dates");
         }
 
         int year = request.getStartDate().getYear();
@@ -149,6 +219,11 @@ public class LeaveServiceImpl implements LeaveService {
                 employee.getId(), leaveType.getId(), year, requestedUnits);
         leaveBalanceService.lockPendingUnits(
                 employee.getId(), leaveType.getId(), year, requestedUnits);
+
+        boolean requiresMultiLevel = false;
+        if (Boolean.TRUE.equals(leaveType.getIsMultiLevelApproval())) {
+            requiresMultiLevel = requestedUnits >= leaveType.getMultiLevelTriggerUnits();
+        }
 
         LeaveRequest leave = new LeaveRequest();
         leave.setEmployee(employee);
@@ -161,21 +236,33 @@ public class LeaveServiceImpl implements LeaveService {
         leave.setRequestedUnits(requestedUnits);
         leave.setStatus(LeaveStatus.PENDING);
         leave.setApprovalStage(ApprovalStage.MANAGER);
-        leave.setIsMultiLevel(Boolean.TRUE.equals(leaveType.getIsMultiLevelApproval()));
+        leave.setIsMultiLevel(requiresMultiLevel);
 
         LeaveRequest saved = leaveRequestRepository.save(leave);
+        writeHistory(saved, null, LeaveStatus.PENDING, "Leave submitted", employee);
 
-        LeaveStatusHistory history = new LeaveStatusHistory();
-        history.setLeaveRequest(saved);
-        history.setOldStatus(null);
-        history.setNewStatus(LeaveStatus.PENDING);
-        history.setChangedBy(employee);
-        history.setComment("Leave submitted");
-        leaveStatusHistoryRepository.save(history);
+        //  Notify manager asynchronously 
+        // notificationService.notifyLeaveSubmitted(buildDto(saved));
 
-        log.info("Leave submitted - id: {} by: {} units: {}", saved.getId(), email, requestedUnits);
+        // Ab pehle Db transaction trigger hone do phir mail trigger karenge
+        // fixes a race condition between the database transaction and the async notification
+        NotificationDto dto = buildDto(saved);
+
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        notificationService.notifyLeaveSubmitted(dto);
+                    }
+                }
+        );
+
+        log.info("Leave submitted id:{} by:{} units:{} multiLevel:{}",
+                saved.getId(), email, requestedUnits, requiresMultiLevel);
         return new LeaveSubmitResponse(saved.getId(), saved.getStatus(), saved.getCreatedAt());
     }
+
+    //  Get Leaves 
 
     @Transactional(readOnly = true)
     @Override
@@ -196,14 +283,12 @@ public class LeaveServiceImpl implements LeaveService {
             leaves.addAll(leaveRequestRepository.findByManagerIdWithFilters(
                     user.getId(), status, startDate, endDate, createdAt, search));
             leaves.sort(Comparator.comparing(LeaveRequest::getCreatedAt).reversed());
-        } else if (hasRole(user, "ROLE_EMPLOYEE")) {
+        } else {
             leaves = leaveRequestRepository.findByEmployeeIdWithFilters(
                     user.getId(), status, startDate, endDate, createdAt, search);
-        } else {
-            throw new AccessDeniedException("User does not have a valid role to view leaves");
         }
 
-        List<LeaveViewResponse> result = leaves.stream().map(leave -> new LeaveViewResponse(
+        return leaves.stream().map(leave -> new LeaveViewResponse(
                         leave.getId(),
                         leave.getEmployee().getId(),
                         leave.getEmployee().getName(),
@@ -224,96 +309,233 @@ public class LeaveServiceImpl implements LeaveService {
                                         h.getCreatedAt()))
                                 .toList()))
                 .collect(Collectors.toList());
-        return result;
     }
+
+    //  Approve Leave 
 
     @Transactional
     @Override
-    public LeaveStatusResponse updateLeaveStatus(Long leaveId, LeaveStatusRequest request,
-                                                 String email) {
-        log.info("Leave status update requested for leaveId: {} by: {}", leaveId, email);
-
+    public LeaveStatusResponse approveLeave(Long leaveId, LeaveActionRequest request, String email) {
+        log.info("Approve requested for leaveId:{} by:{}", leaveId, email);
         Employee user = getUser(email);
-
-        if (!hasRole(user, "ROLE_MANAGER") && !hasRole(user, "ROLE_ADMIN")) {
-            throw new AccessDeniedException("Only managers and admins can update leave statuses");
-        }
-
-        LeaveRequest leave = leaveRequestRepository.findById(leaveId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Leave request not found for id: " + leaveId));
+        LeaveRequest leave = getLeave(leaveId);
+        boolean isMultiLevel = Boolean.TRUE.equals(leave.getIsMultiLevel());
 
         if (hasRole(user, "ROLE_MANAGER") && !hasRole(user, "ROLE_ADMIN")) {
-            if (leave.getEmployee().getManager() == null) {
-                throw new AccessDeniedException(
-                        "This employee has no manager assigned. Only Admin can approve this leave.");
+            checkIsSubordinate(user, leave);
+
+            if (leave.getStatus() != LeaveStatus.PENDING) {
+                throw new BusinessRuleException("Manager can only approve PENDING leaves");
             }
-            boolean isSubordinate = leave.getEmployee().getManager().getId().equals(user.getId());
-            if (!isSubordinate) {
-                throw new AccessDeniedException(
-                        "You can only update leaves of employees under you");
+            if (isMultiLevel) {
+                leave.setStatus(LeaveStatus.MANAGER_APPROVED);
+                leave.setApprovalStage(ApprovalStage.ADMIN);
+                LeaveRequest saved = leaveRequestRepository.save(leave);
+                writeHistory(saved, LeaveStatus.PENDING, LeaveStatus.MANAGER_APPROVED,
+                        request.getComment(), user);
+
+                //  Notify employee + admin asynchronously 
+                // NotificationDto dto = buildDto(saved);
+                // notificationService.notifyManagerApproved(dto);
+                // notificationService.notifyAdminPendingApproval(dto);
+
+                NotificationDto dto = buildDto(saved); 
+
+                TransactionSynchronizationManager.registerSynchronization( 
+                        new TransactionSynchronization() { 
+                            @Override
+                            public void afterCommit() { 
+                                notificationService.notifyManagerApproved(dto); 
+                                notificationService.notifyAdminPendingApproval(dto); 
+                            } 
+                        } 
+                ); 
+
+                log.info("Leave {} manager approved, awaiting admin", leaveId);
+                return new LeaveStatusResponse(saved.getId(), saved.getStatus(), saved.getUpdatedAt());
+            } else {
+                leave.setStatus(LeaveStatus.APPROVED);
+                leave.setApprovalStage(ApprovalStage.COMPLETED);
+                LeaveRequest saved = leaveRequestRepository.save(leave);
+                deductBalance(leave);
+                writeHistory(saved, LeaveStatus.PENDING, LeaveStatus.APPROVED,
+                        request.getComment(), user);
+
+                //  Notify employee asynchronously 
+                // notificationService.notifyLeaveApproved(buildDto(saved));
+
+                NotificationDto dto = buildDto(saved); 
+
+                TransactionSynchronizationManager.registerSynchronization( 
+                        new TransactionSynchronization() { 
+                            @Override
+                            public void afterCommit() { 
+                                notificationService.notifyLeaveApproved(dto); 
+                            } 
+                        } 
+                ); 
+
+                log.info("Leave {} approved by manager (single level)", leaveId);
+                return new LeaveStatusResponse(saved.getId(), saved.getStatus(), saved.getUpdatedAt());
             }
+        }
+
+        if (hasRole(user, "ROLE_ADMIN")) {
+            if (isMultiLevel && leave.getStatus() == LeaveStatus.PENDING) {
+                throw new AccessDeniedException(
+                        "Manager must approve first for multi-level leaves");
+            }
+            if (leave.getStatus() != LeaveStatus.PENDING
+                    && leave.getStatus() != LeaveStatus.MANAGER_APPROVED) {
+                throw new BusinessRuleException(
+                        "Leave cannot be approved from status: " + leave.getStatus());
+            }
+            LeaveStatus oldStatus = leave.getStatus();
+            leave.setStatus(LeaveStatus.APPROVED);
+            leave.setApprovalStage(ApprovalStage.COMPLETED);
+            LeaveRequest saved = leaveRequestRepository.save(leave);
+            deductBalance(leave);
+            writeHistory(saved, oldStatus, LeaveStatus.APPROVED, request.getComment(), user);
+
+            //  Notify employee asynchronously 
+            // notificationService.notifyLeaveApproved(buildDto(saved));
+
+            NotificationDto dto = buildDto(saved); 
+
+            TransactionSynchronizationManager.registerSynchronization( 
+                    new TransactionSynchronization() { 
+                        @Override
+                        public void afterCommit() { 
+                            notificationService.notifyLeaveApproved(dto); 
+                        } 
+                    } 
+            ); 
+
+            log.info("Leave {} approved by admin", leaveId);
+            return new LeaveStatusResponse(saved.getId(), saved.getStatus(), saved.getUpdatedAt());
+        }
+
+        throw new AccessDeniedException("Only Manager or Admin can approve leaves");
+    }
+
+    //  Reject Leave 
+
+    @Transactional
+    @Override
+    public LeaveStatusResponse rejectLeave(Long leaveId, LeaveActionRequest request, String email) {
+        log.info("Reject requested for leaveId:{} by:{}", leaveId, email);
+        Employee user = getUser(email);
+        LeaveRequest leave = getLeave(leaveId);
+
+        if (!hasRole(user, "ROLE_MANAGER") && !hasRole(user, "ROLE_ADMIN")) {
+            throw new AccessDeniedException("Only Manager or Admin can reject leaves");
+        }
+
+        if (hasRole(user, "ROLE_MANAGER") && !hasRole(user, "ROLE_ADMIN")) {
+            checkIsSubordinate(user, leave);
+        }
+
+        if (leave.getStatus() == LeaveStatus.APPROVED
+                || leave.getStatus() == LeaveStatus.REJECTED
+                || leave.getStatus() == LeaveStatus.CANCELLED) {
+            throw new BusinessRuleException(
+                    "Cannot reject leave with status: " + leave.getStatus());
+        }
+
+        LeaveStatus oldStatus = leave.getStatus();
+        leave.setStatus(LeaveStatus.REJECTED);
+        leave.setRejectionReason(request.getComment());
+        leave.setApprovalStage(ApprovalStage.COMPLETED);
+        LeaveRequest saved = leaveRequestRepository.save(leave);
+        releaseBalance(leave);
+        writeHistory(saved, oldStatus, LeaveStatus.REJECTED, request.getComment(), user);
+
+        //  Notify employee asynchronously 
+        // notificationService.notifyLeaveRejected(buildDto(saved));
+
+        NotificationDto dto = buildDto(saved); 
+
+        TransactionSynchronizationManager.registerSynchronization( 
+                new TransactionSynchronization() { 
+                    @Override
+                    public void afterCommit() { 
+                        notificationService.notifyLeaveRejected(dto); 
+                    } 
+                } 
+        ); 
+
+        log.info("Leave {} rejected by:{}", leaveId, email);
+        return new LeaveStatusResponse(saved.getId(), saved.getStatus(), saved.getUpdatedAt());
+    }
+
+    //  Cancel Leave 
+
+    @Transactional
+    @Override
+    public LeaveStatusResponse cancelLeave(Long leaveId, LeaveActionRequest request, String email) {
+        log.info("Cancel requested for leaveId:{} by:{}", leaveId, email);
+        Employee user = getUser(email);
+        LeaveRequest leave = getLeave(leaveId);
+
+        if (!leave.getEmployee().getId().equals(user.getId())) {
+            throw new AccessDeniedException("You can only cancel your own leave requests");
         }
 
         LeaveStatus currentStatus = leave.getStatus();
-        LeaveStatus newStatus = request.getStatus();
 
-        Map<LeaveStatus, Set<LeaveStatus>> validTransitions = Map.of(
-                LeaveStatus.PENDING,
-                Set.of(LeaveStatus.MANAGER_APPROVED, LeaveStatus.REJECTED),
-                LeaveStatus.MANAGER_APPROVED,
-                Set.of(LeaveStatus.APPROVED, LeaveStatus.REJECTED));
-
-        Set<LeaveStatus> allowed = validTransitions.getOrDefault(currentStatus, Set.of());
-        if (!allowed.contains(newStatus)) {
+        if (currentStatus == LeaveStatus.REJECTED || currentStatus == LeaveStatus.CANCELLED) {
             throw new BusinessRuleException(
-                    "Cannot transition leave from " + currentStatus + " to " + newStatus);
+                    "Cannot cancel leave with status: " + currentStatus);
         }
 
-        if (hasRole(user, "ROLE_MANAGER") && !hasRole(user, "ROLE_ADMIN")) {
-            if (currentStatus != LeaveStatus.PENDING) {
-                throw new AccessDeniedException("Managers can only act on PENDING leaves");
-            }
-        }
+        NotificationDto dto = buildDto(leave);
 
-        if (hasRole(user, "ROLE_ADMIN") && !hasRole(user, "ROLE_MANAGER")) {
-            if (Boolean.TRUE.equals(leave.getIsMultiLevel())
-                    && currentStatus == LeaveStatus.PENDING) {
-                throw new AccessDeniedException(
-                        "Admin can only act after Manager has approved for multi-level leaves");
-            }
-        }
-
-        leave.setStatus(newStatus);
-
-        if (newStatus == LeaveStatus.MANAGER_APPROVED) {
-            leave.setApprovalStage(ApprovalStage.ADMIN);
-        } else if (newStatus == LeaveStatus.APPROVED || newStatus == LeaveStatus.REJECTED) {
-            leave.setApprovalStage(ApprovalStage.COMPLETED);
-        }
-
+        leave.setStatus(LeaveStatus.CANCELLED);
+        leave.setApprovalStage(ApprovalStage.COMPLETED);
         LeaveRequest saved = leaveRequestRepository.save(leave);
 
-        int year = leave.getStartDate().getYear();
-        Long empId = leave.getEmployee().getId();
-        Long ltId = leave.getLeaveType().getId();
-        int units = leave.getRequestedUnits();
-
-        if (newStatus == LeaveStatus.APPROVED) {
-            leaveBalanceService.deductOnApproval(empId, ltId, year, units);
-        } else if (newStatus == LeaveStatus.REJECTED) {
-            leaveBalanceService.releasePendingUnits(empId, ltId, year, units);
+        if (currentStatus == LeaveStatus.APPROVED) {
+            leaveBalanceService.restoreUsedUnits(
+                    leave.getEmployee().getId(),
+                    leave.getLeaveType().getId(),
+                    leave.getStartDate().getYear(),
+                    leave.getRequestedUnits());
+        } else {
+            releaseBalance(leave);
         }
 
-        LeaveStatusHistory history = new LeaveStatusHistory();
-        history.setLeaveRequest(saved);
-        history.setOldStatus(currentStatus);
-        history.setNewStatus(newStatus);
-        history.setComment(request.getComment());
-        history.setChangedBy(user);
-        leaveStatusHistoryRepository.save(history);
+        writeHistory(saved, currentStatus, LeaveStatus.CANCELLED, request.getComment(), user);
 
-        log.info("Leave {} updated from {} to {} by: {}", leaveId, currentStatus, newStatus, email);
+        //  Notify manager (+ admin if involved) asynchronously 
+        // notificationService.notifyLeaveCancelled(dto);
+
+        TransactionSynchronizationManager.registerSynchronization( 
+                new TransactionSynchronization() { 
+                    @Override
+                    public void afterCommit() { 
+                        notificationService.notifyLeaveCancelled(dto); 
+                    } 
+                } 
+        ); 
+
+        log.info("Leave {} cancelled by employee:{}", leaveId, email);
         return new LeaveStatusResponse(saved.getId(), saved.getStatus(), saved.getUpdatedAt());
+    }
+
+
+    private void deductBalance(LeaveRequest leave) {
+        leaveBalanceService.deductOnApproval(
+                leave.getEmployee().getId(),
+                leave.getLeaveType().getId(),
+                leave.getStartDate().getYear(),
+                leave.getRequestedUnits());
+    }
+
+    private void releaseBalance(LeaveRequest leave) {
+        leaveBalanceService.releasePendingUnits(
+                leave.getEmployee().getId(),
+                leave.getLeaveType().getId(),
+                leave.getStartDate().getYear(),
+                leave.getRequestedUnits());
     }
 }

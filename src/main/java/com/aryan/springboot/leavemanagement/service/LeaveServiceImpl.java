@@ -1,6 +1,7 @@
 package com.aryan.springboot.leavemanagement.service;
 
 import com.aryan.springboot.leavemanagement.entity.Employee;
+import com.aryan.springboot.leavemanagement.entity.LeaveBalance;
 import com.aryan.springboot.leavemanagement.entity.LeaveRequest;
 import com.aryan.springboot.leavemanagement.entity.LeaveStatusHistory;
 import com.aryan.springboot.leavemanagement.entity.LeaveType;
@@ -9,6 +10,7 @@ import com.aryan.springboot.leavemanagement.entity.enums.LeaveStatus;
 import com.aryan.springboot.leavemanagement.entity.enums.Session;
 import com.aryan.springboot.leavemanagement.exception.BusinessRuleException;
 import com.aryan.springboot.leavemanagement.exception.ResourceNotFoundException;
+import com.aryan.springboot.leavemanagement.repository.LeaveBalanceRepository;
 import com.aryan.springboot.leavemanagement.repository.LeaveRequestRepository;
 import com.aryan.springboot.leavemanagement.repository.LeaveStatusHistoryRepository;
 import com.aryan.springboot.leavemanagement.repository.LeaveTypeRepository;
@@ -23,6 +25,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -39,18 +43,24 @@ public class LeaveServiceImpl implements LeaveService {
     private final LeaveStatusHistoryRepository leaveStatusHistoryRepository;
     private final LeaveTypeRepository leaveTypeRepository;
     private final LeaveBalanceService leaveBalanceService;
+    private final LeaveBalanceRepository leaveBalanceRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     public LeaveServiceImpl(LeaveRequestRepository leaveRequestRepository,
                             LeaveStatusHistoryRepository leaveStatusHistoryRepository,
                             LeaveTypeRepository leaveTypeRepository,
                             LeaveBalanceService leaveBalanceService,
-                            UserRepository userRepository) {
+                            LeaveBalanceRepository leaveBalanceRepository,
+                            UserRepository userRepository,
+                            NotificationService notificationService) {
         this.leaveRequestRepository = leaveRequestRepository;
         this.leaveStatusHistoryRepository = leaveStatusHistoryRepository;
         this.leaveTypeRepository = leaveTypeRepository;
         this.leaveBalanceService = leaveBalanceService;
+        this.leaveBalanceRepository = leaveBalanceRepository;
         this.userRepository = userRepository;
+        this.notificationService = notificationService;
     }
 
     private Employee getUser(String email) {
@@ -106,6 +116,45 @@ public class LeaveServiceImpl implements LeaveService {
             current = current.plusDays(1);
         }
         return (int) Math.ceil(units / 2.0);
+    }
+
+    // Builds NotificationDto from a LeaveRequest.
+    // Called after every status change to pass to NotificationService.
+
+    private NotificationDto buildDto(LeaveRequest leave) {
+        Employee emp     = leave.getEmployee();
+        Employee manager = emp.getManager();
+        Employee admin   = userRepository.findByRole("ROLE_ADMIN").orElse(null);
+
+        Integer remaining = leaveBalanceRepository
+                .findByEmployeeIdAndLeaveTypeIdAndYear(
+                        emp.getId(),
+                        leave.getLeaveType().getId(),
+                        leave.getStartDate().getYear())
+                .map(b -> b.getAllocatedUnits() - b.getUsedUnits() - b.getPendingUnits())
+                .orElse(null);
+
+        return new NotificationDto(
+                leave.getId(),
+                leave.getStartDate(),
+                leave.getEndDate(),
+                leave.getRequestedUnits(),
+                leave.getReason(),
+                leave.getRejectionReason(),
+                leave.getStatus(),
+                leave.getApprovalStage(),
+                leave.getLeaveType().getName(),
+                emp.getId(),
+                emp.getName(),
+                emp.getEmail(),
+                manager != null ? manager.getId()    : null,
+                manager != null ? manager.getName()  : null,
+                manager != null ? manager.getEmail() : null,
+                admin   != null ? admin.getId()      : null,
+                admin   != null ? admin.getName()    : null,
+                admin   != null ? admin.getEmail()   : null,
+                remaining
+        );
     }
 
     // Submit Leave
@@ -171,7 +220,6 @@ public class LeaveServiceImpl implements LeaveService {
         leaveBalanceService.lockPendingUnits(
                 employee.getId(), leaveType.getId(), year, requestedUnits);
 
-        // Determine if this specific leave requires multi-level approval
         boolean requiresMultiLevel = false;
         if (Boolean.TRUE.equals(leaveType.getIsMultiLevelApproval())) {
             requiresMultiLevel = requestedUnits >= leaveType.getMultiLevelTriggerUnits();
@@ -193,12 +241,26 @@ public class LeaveServiceImpl implements LeaveService {
         LeaveRequest saved = leaveRequestRepository.save(leave);
         writeHistory(saved, null, LeaveStatus.PENDING, "Leave submitted", employee);
 
+        //  Notify manager asynchronously
+        // notificationService.notifyLeaveSubmitted(buildDto(saved));
+
+        NotificationDto dto = buildDto(saved);
+
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        notificationService.notifyLeaveSubmitted(dto);
+                    }
+                }
+        );
+
         log.info("Leave submitted id:{} by:{} units:{} multiLevel:{}",
                 saved.getId(), email, requestedUnits, requiresMultiLevel);
         return new LeaveSubmitResponse(saved.getId(), saved.getStatus(), saved.getCreatedAt());
     }
 
-    // Get Leaves
+    //  Get Leaves
 
     @Transactional(readOnly = true)
     @Override
@@ -247,7 +309,7 @@ public class LeaveServiceImpl implements LeaveService {
                 .collect(Collectors.toList());
     }
 
-    // Approve Leave
+    //  Approve Leave
 
     @Transactional
     @Override
@@ -264,22 +326,53 @@ public class LeaveServiceImpl implements LeaveService {
                 throw new BusinessRuleException("Manager can only approve PENDING leaves");
             }
             if (isMultiLevel) {
-                // Multi level → manager sets MANAGER_APPROVED, not final APPROVED
                 leave.setStatus(LeaveStatus.MANAGER_APPROVED);
                 leave.setApprovalStage(ApprovalStage.ADMIN);
                 LeaveRequest saved = leaveRequestRepository.save(leave);
                 writeHistory(saved, LeaveStatus.PENDING, LeaveStatus.MANAGER_APPROVED,
                         request.getComment(), user);
+
+                //  Notify employee + admin asynchronously
+                // NotificationDto dto = buildDto(saved);
+                // notificationService.notifyManagerApproved(dto);
+                // notificationService.notifyAdminPendingApproval(dto);
+
+                NotificationDto dto = buildDto(saved);
+
+                TransactionSynchronizationManager.registerSynchronization(
+                        new TransactionSynchronization() {
+                            @Override
+                            public void afterCommit() {
+                                notificationService.notifyManagerApproved(dto);
+                                notificationService.notifyAdminPendingApproval(dto);
+                            }
+                        }
+                );
+
                 log.info("Leave {} manager approved, awaiting admin", leaveId);
                 return new LeaveStatusResponse(saved.getId(), saved.getStatus(), saved.getUpdatedAt());
             } else {
-                // Single level → manager directly approves
                 leave.setStatus(LeaveStatus.APPROVED);
                 leave.setApprovalStage(ApprovalStage.COMPLETED);
                 LeaveRequest saved = leaveRequestRepository.save(leave);
                 deductBalance(leave);
                 writeHistory(saved, LeaveStatus.PENDING, LeaveStatus.APPROVED,
                         request.getComment(), user);
+
+                //  Notify employee asynchronously
+                // notificationService.notifyLeaveApproved(buildDto(saved));
+
+                NotificationDto dto = buildDto(saved);
+
+                TransactionSynchronizationManager.registerSynchronization(
+                        new TransactionSynchronization() {
+                            @Override
+                            public void afterCommit() {
+                                notificationService.notifyLeaveApproved(dto);
+                            }
+                        }
+                );
+
                 log.info("Leave {} approved by manager (single level)", leaveId);
                 return new LeaveStatusResponse(saved.getId(), saved.getStatus(), saved.getUpdatedAt());
             }
@@ -301,6 +394,21 @@ public class LeaveServiceImpl implements LeaveService {
             LeaveRequest saved = leaveRequestRepository.save(leave);
             deductBalance(leave);
             writeHistory(saved, oldStatus, LeaveStatus.APPROVED, request.getComment(), user);
+
+            //  Notify employee asynchronously
+            // notificationService.notifyLeaveApproved(buildDto(saved));
+
+            NotificationDto dto = buildDto(saved);
+
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            notificationService.notifyLeaveApproved(dto);
+                        }
+                    }
+            );
+
             log.info("Leave {} approved by admin", leaveId);
             return new LeaveStatusResponse(saved.getId(), saved.getStatus(), saved.getUpdatedAt());
         }
@@ -308,7 +416,7 @@ public class LeaveServiceImpl implements LeaveService {
         throw new AccessDeniedException("Only Manager or Admin can approve leaves");
     }
 
-    // Reject Leave
+    //  Reject Leave
 
     @Transactional
     @Override
@@ -339,11 +447,26 @@ public class LeaveServiceImpl implements LeaveService {
         LeaveRequest saved = leaveRequestRepository.save(leave);
         releaseBalance(leave);
         writeHistory(saved, oldStatus, LeaveStatus.REJECTED, request.getComment(), user);
+
+        //  Notify employee asynchronously
+        // notificationService.notifyLeaveRejected(buildDto(saved));
+
+        NotificationDto dto = buildDto(saved);
+
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        notificationService.notifyLeaveRejected(dto);
+                    }
+                }
+        );
+
         log.info("Leave {} rejected by:{}", leaveId, email);
         return new LeaveStatusResponse(saved.getId(), saved.getStatus(), saved.getUpdatedAt());
     }
 
-    // Cancel Leave
+    //  Cancel Leave
 
     @Transactional
     @Override
@@ -352,7 +475,6 @@ public class LeaveServiceImpl implements LeaveService {
         Employee user = getUser(email);
         LeaveRequest leave = getLeave(leaveId);
 
-        // Only the employee who submitted can cancel
         if (!leave.getEmployee().getId().equals(user.getId())) {
             throw new AccessDeniedException("You can only cancel your own leave requests");
         }
@@ -364,29 +486,40 @@ public class LeaveServiceImpl implements LeaveService {
                     "Cannot cancel leave with status: " + currentStatus);
         }
 
+        NotificationDto dto = buildDto(leave);
+
         leave.setStatus(LeaveStatus.CANCELLED);
         leave.setApprovalStage(ApprovalStage.COMPLETED);
         LeaveRequest saved = leaveRequestRepository.save(leave);
 
-        // Balance restoration depends on previous status
         if (currentStatus == LeaveStatus.APPROVED) {
-            // Units were moved to usedUnits on approval → restore them back
             leaveBalanceService.restoreUsedUnits(
                     leave.getEmployee().getId(),
                     leave.getLeaveType().getId(),
                     leave.getStartDate().getYear(),
                     leave.getRequestedUnits());
         } else {
-            // PENDING or MANAGER_APPROVED → units are in pendingUnits → release them
             releaseBalance(leave);
         }
 
         writeHistory(saved, currentStatus, LeaveStatus.CANCELLED, request.getComment(), user);
+
+        //  Notify manager (+ admin if involved) asynchronously
+        // notificationService.notifyLeaveCancelled(dto);
+
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        notificationService.notifyLeaveCancelled(dto);
+                    }
+                }
+        );
+
         log.info("Leave {} cancelled by employee:{}", leaveId, email);
         return new LeaveStatusResponse(saved.getId(), saved.getStatus(), saved.getUpdatedAt());
     }
 
-    // Balance Helpers
 
     private void deductBalance(LeaveRequest leave) {
         leaveBalanceService.deductOnApproval(
@@ -403,6 +536,4 @@ public class LeaveServiceImpl implements LeaveService {
                 leave.getStartDate().getYear(),
                 leave.getRequestedUnits());
     }
-
-
 }

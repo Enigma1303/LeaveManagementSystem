@@ -1,6 +1,6 @@
 package com.aryan.springboot.leavemanagement.service;
 
-import com.aryan.springboot.leavemanagement.service.NotificationDto;
+import com.aryan.springboot.leavemanagement.entity.Employee;
 import com.aryan.springboot.leavemanagement.entity.LeaveRequest;
 import com.aryan.springboot.leavemanagement.entity.NotificationLog;
 import com.aryan.springboot.leavemanagement.entity.enums.NotificationStatus;
@@ -8,6 +8,7 @@ import com.aryan.springboot.leavemanagement.entity.enums.LeaveStatus;
 import com.aryan.springboot.leavemanagement.entity.enums.NotificationType;
 import com.aryan.springboot.leavemanagement.repository.LeaveRequestRepository;
 import com.aryan.springboot.leavemanagement.repository.NotificationLogRepository;
+import com.aryan.springboot.leavemanagement.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -22,16 +23,19 @@ public class NotificationServiceImpl implements NotificationService {
     private final EmailService emailService;
     private final NotificationLogRepository notificationLogRepository;
     private final LeaveRequestRepository leaveRequestRepository;
+    private final UserRepository userRepository;
 
     private static final DateTimeFormatter DATE_FORMAT =
-            DateTimeFormatter.ofPattern("dd MMM yyyy");
+            DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     public NotificationServiceImpl(EmailService emailService,
                                    NotificationLogRepository notificationLogRepository,
-                                   LeaveRequestRepository leaveRequestRepository) {
+                                   LeaveRequestRepository leaveRequestRepository,
+                                   UserRepository userRepository) {
         this.emailService = emailService;
         this.notificationLogRepository = notificationLogRepository;
         this.leaveRequestRepository = leaveRequestRepository;
+        this.userRepository = userRepository;
     }
 
     // Leave Submitted → notify Manager
@@ -52,7 +56,7 @@ public class NotificationServiceImpl implements NotificationService {
                 + balanceLine(dto)
                 + "\nPlease login to approve or reject this request."
                 + footer();
-        sendAndLog(dto.getLeaveId(), dto.getManagerEmail(),
+        sendAndLog(dto.getLeaveId(), dto.getManagerId(), dto.getManagerEmail(),
                 NotificationType.SUBMISSION, subject, body);
     }
 
@@ -67,7 +71,7 @@ public class NotificationServiceImpl implements NotificationService {
                 + details(dto)
                 + balanceLine(dto)
                 + footer();
-        sendAndLog(dto.getLeaveId(), dto.getEmployeeEmail(),
+        sendAndLog(dto.getLeaveId(), dto.getEmployeeId(), dto.getEmployeeEmail(),
                 NotificationType.APPROVED, subject, body);
     }
 
@@ -83,7 +87,7 @@ public class NotificationServiceImpl implements NotificationService {
                 + (dto.getRejectionReason() != null
                 ? "Rejection Note : " + dto.getRejectionReason() + "\n" : "")
                 + footer();
-        sendAndLog(dto.getLeaveId(), dto.getEmployeeEmail(),
+        sendAndLog(dto.getLeaveId(), dto.getEmployeeId(), dto.getEmployeeEmail(),
                 NotificationType.REJECTED, subject, body);
     }
 
@@ -95,20 +99,18 @@ public class NotificationServiceImpl implements NotificationService {
         String subject = dto.getEmployeeName() + " has cancelled their leave";
         String body = "has cancelled their leave request.";
 
-        // Always notify manager
         if (dto.getManagerEmail() != null) {
             String managerBody = "Dear " + dto.getManagerName() + ",\n\n"
                     + dto.getEmployeeName() + " " + body + "\n\n"
                     + details(dto)
                     + footer();
-            sendAndLog(dto.getLeaveId(), dto.getManagerEmail(),
+            sendAndLog(dto.getLeaveId(), dto.getManagerId(), dto.getManagerEmail(),
                     NotificationType.CANCELLED, subject, managerBody);
         } else {
             log.warn("No manager assigned for leaveId:{} skipping manager cancellation notification",
                     dto.getLeaveId());
         }
 
-        // Notify admin if they were involved (status was MANAGER_APPROVED or APPROVED)
         boolean adminWasInvolved = dto.getStatus() == LeaveStatus.MANAGER_APPROVED
                 || dto.getStatus() == LeaveStatus.APPROVED;
 
@@ -118,12 +120,11 @@ public class NotificationServiceImpl implements NotificationService {
                     + details(dto)
                     + "Note : This leave had reached admin approval stage.\n"
                     + footer();
-            sendAndLog(dto.getLeaveId(), dto.getAdminEmail(),
+            sendAndLog(dto.getLeaveId(), dto.getAdminId(), dto.getAdminEmail(),
                     NotificationType.CANCELLED, subject, adminBody);
             log.info("Admin notified of cancellation for leaveId:{}", dto.getLeaveId());
         }
     }
-
 
     // Manager Approved → notify Employee (multi-level)
 
@@ -138,8 +139,8 @@ public class NotificationServiceImpl implements NotificationService {
                 + "Approval Stage : " + dto.getApprovalStage().name() + "\n"
                 + balanceLine(dto)
                 + footer();
-        sendAndLog(dto.getLeaveId(), dto.getEmployeeEmail(),
-                NotificationType.APPROVED, subject, body);
+        sendAndLog(dto.getLeaveId(), dto.getEmployeeId(), dto.getEmployeeEmail(),
+                NotificationType.MANAGER_APPROVED, subject, body);
     }
 
     // Admin notified when multi-level leave needs final approval
@@ -161,19 +162,22 @@ public class NotificationServiceImpl implements NotificationService {
                 + balanceLine(dto)
                 + "\nPlease login to approve or reject this request."
                 + footer();
-        sendAndLog(dto.getLeaveId(), dto.getAdminEmail(),
+        sendAndLog(dto.getLeaveId(), dto.getAdminId(), dto.getAdminEmail(),
                 NotificationType.SUBMISSION, subject, body);
     }
 
-    //send email and persist log
+    // send email and persist log
 
-    private void sendAndLog(Long leaveId, String recipientEmail,
+    private void sendAndLog(Long leaveId, Long recipientId, String recipientEmail,
                             NotificationType type, String subject, String body) {
 
         LeaveRequest leaveRef = leaveRequestRepository.getReferenceById(leaveId);
+        Employee recipientRef = userRepository.getReferenceById(recipientId);
 
         NotificationLog entry = new NotificationLog();
         entry.setLeaveRequest(leaveRef);
+        entry.setRecipient(recipientRef);
+        entry.setMaxAttempts(3);
         entry.setType(type);
         entry.setStatus(NotificationStatus.PENDING);
         entry.setPayload(body);
