@@ -10,7 +10,7 @@ public class LeavemanagementApplication {
 
 	public static void main(String[] args) {
 
-		//System.out.println(new BCryptPasswordEncoder().encode("admin123"));
+		System.out.println(new BCryptPasswordEncoder().encode("admin123"));
 		SpringApplication.run(LeavemanagementApplication.class, args);
 	}
 
