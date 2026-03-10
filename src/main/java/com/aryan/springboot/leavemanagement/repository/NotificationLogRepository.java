@@ -11,7 +11,10 @@ import java.util.List;
 public interface NotificationLogRepository extends JpaRepository<NotificationLog, Long> {
 
     List<NotificationLog> findByStatus(NotificationStatus status);
-
+    List<NotificationLog> findByStatusAndAttemptCountLessThan(
+            NotificationStatus status,
+            int maxAttempts
+    );
     @Query("SELECT n FROM NotificationLog n WHERE n.leaveRequest.id = :leaveRequestId")
     List<NotificationLog> findByLeaveRequestId(@Param("leaveRequestId") Long leaveRequestId);
 }
