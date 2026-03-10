@@ -51,6 +51,8 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
                                 + ", leaveTypeId=" + leaveTypeId + ", year=" + year));
     }
 
+    // Earlier i had missed transactional which resulted in LazyInitializationException
+    // due to accessing a lazily loaded entity outside the session.
     @Transactional(readOnly = true)
     @Override
     public List<LeaveBalanceResponse> getMyBalances(String email, Integer year) {

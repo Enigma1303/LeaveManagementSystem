@@ -20,6 +20,9 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long
                  "OR LOWER(l.employee.name) LIKE LOWER(CONCAT('%', :search, '%'))) ";
 
  // JOIN FETCH employee, leaveType and statusHistory to avoid N+1 and lazy loading
+ // Currently using fetch employee to fix lazy loading and N+1 problem
+ // There must be issue when i will intergrate pagination
+ // Note: for myself to handle it
  String BASE_QUERY = "SELECT l FROM LeaveRequest l " +
          "JOIN FETCH l.employee e " +
          "JOIN FETCH l.leaveType lt " +
