@@ -1,5 +1,7 @@
 package com.aryan.springboot.leavemanagement.service;
 
+import com.aryan.springboot.leavemanagement.entity.LeaveRequest;
+import com.aryan.springboot.leavemanagement.entity.Employee;
 import com.aryan.springboot.leavemanagement.entity.enums.ApprovalStage;
 import com.aryan.springboot.leavemanagement.entity.enums.LeaveStatus;
 import lombok.Builder;
@@ -39,4 +41,36 @@ public class NotificationDto {
 
     // Balance
     private final Integer remainingBalance;
+
+    public static NotificationDto from(LeaveRequest leave) {
+
+        Employee employee = leave.getEmployee();
+        Employee manager = employee.getManager();
+
+        return NotificationDto.builder()
+                .leaveId(leave.getId())
+                .startDate(leave.getStartDate())
+                .endDate(leave.getEndDate())
+                .requestedUnits(leave.getRequestedUnits())
+                .reason(leave.getReason())
+                .rejectionReason(leave.getRejectionReason())
+                .status(leave.getStatus())
+                .approvalStage(leave.getApprovalStage())
+                .leaveTypeName(leave.getLeaveType().getName())
+
+                .employeeId(employee.getId())
+                .employeeName(employee.getName())
+                .employeeEmail(employee.getEmail())
+
+                .managerId(manager != null ? manager.getId() : null)
+                .managerName(manager != null ? manager.getName() : null)
+                .managerEmail(manager != null ? manager.getEmail() : null)
+
+                .adminId(null)
+                .adminName(null)
+                .adminEmail(null)
+
+                .remainingBalance(null)
+                .build();
+    }
 }

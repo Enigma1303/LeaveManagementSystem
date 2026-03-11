@@ -21,7 +21,7 @@ public class LeaveReminderScheduler {
     private final LeaveRequestRepository leaveRequestRepository;
     private final NotificationService notificationService;
 
-    @Value("${leave.reminder.days-before-start}")
+    @Value("${leave.reminder.days-before-start:2}")
     private int reminderDays;
 
     @Scheduled(cron = "0 0 9 * * ?")
