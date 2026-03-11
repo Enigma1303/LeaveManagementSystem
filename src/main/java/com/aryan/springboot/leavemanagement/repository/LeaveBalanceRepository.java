@@ -1,7 +1,6 @@
 package com.aryan.springboot.leavemanagement.repository;
 
 import com.aryan.springboot.leavemanagement.entity.LeaveBalance;
-import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -13,7 +12,9 @@ public interface LeaveBalanceRepository extends JpaRepository<LeaveBalance, Long
 
     // Used during CSV import to check existing balance
     Optional<LeaveBalance> findByEmployeeIdAndLeaveTypeIdAndYear(
-            Long employeeId, Long leaveTypeId, Integer year
+            Long employeeId,
+            Long leaveTypeId,
+            Integer year
     );
 
     // Used when employee requests leave
@@ -40,9 +41,4 @@ public interface LeaveBalanceRepository extends JpaRepository<LeaveBalance, Long
     List<LeaveBalance> findAllByYear(
             @Param("year") Integer year
     );
-
-    // Safe export for all balances (prevents lazy loading)
-    @Override
-    @EntityGraph(attributePaths = {"employee", "leaveType"})
-    List<LeaveBalance> findAll();
 }
