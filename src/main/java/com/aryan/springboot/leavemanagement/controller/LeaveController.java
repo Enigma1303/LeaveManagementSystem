@@ -49,13 +49,30 @@ public class LeaveController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Page<LeaveViewResponse>> getLeaves(
             @AuthenticationPrincipal UserDetails userDetails,
+
+            @RequestParam(required = false) Long leaveTypeId,
+            @RequestParam(required = false) Integer minDuration,
+            @RequestParam(required = false) Integer maxDuration,
+            @RequestParam(required = false) Boolean multiLevel,
+
             @RequestParam(required = false) LeaveStatus status,
             @RequestParam(required = false) Long employeeId,
             @RequestParam(required = false) Long managerId,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime createdAt,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate startDate,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate endDate,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime createdAt,
+
             @RequestParam(required = false) String search,
+
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
@@ -67,6 +84,10 @@ public class LeaveController {
                         status,
                         employeeId,
                         managerId,
+                        leaveTypeId,
+                        minDuration,
+                        maxDuration,
+                        multiLevel,
                         startDate,
                         endDate,
                         createdAt,

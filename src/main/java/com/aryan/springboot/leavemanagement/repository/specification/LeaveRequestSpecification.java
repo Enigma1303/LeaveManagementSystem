@@ -39,4 +39,27 @@ public class LeaveRequestSpecification {
                         cb.lessThanOrEqualTo(root.get("endDate"), endDate);
     }
 
+    public static Specification<LeaveRequest> leaveType(Long leaveTypeId) {
+        return (root, query, cb) ->
+                leaveTypeId == null ? null :
+                        cb.equal(root.get("leaveType").get("id"), leaveTypeId);
+    }
+
+    public static Specification<LeaveRequest> minDuration(Integer minDuration) {
+        return (root, query, cb) ->
+                minDuration == null ? null :
+                        cb.greaterThanOrEqualTo(root.get("requestedUnits"), minDuration);
+    }
+
+    public static Specification<LeaveRequest> maxDuration(Integer maxDuration) {
+        return (root, query, cb) ->
+                maxDuration == null ? null :
+                        cb.lessThanOrEqualTo(root.get("requestedUnits"), maxDuration);
+    }
+
+    public static Specification<LeaveRequest> multiLevel(Boolean multiLevel) {
+        return (root, query, cb) ->
+                multiLevel == null ? null :
+                        cb.equal(root.get("isMultiLevel"), multiLevel);
+    }
 }
