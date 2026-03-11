@@ -18,7 +18,7 @@ import java.util.concurrent.Executor;
 public class AsyncConfig implements AsyncConfigurer {
 
     @Bean(name = "notificationExecutor")
-    public Executor notificationExecutor() {
+    public ThreadPoolTaskExecutor notificationExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(2);
         executor.setMaxPoolSize(5);
@@ -26,6 +26,11 @@ public class AsyncConfig implements AsyncConfigurer {
         executor.setThreadNamePrefix("notification-");
         executor.initialize();
         return executor;
+    }
+
+    @Override
+    public Executor getAsyncExecutor() {
+        return notificationExecutor();
     }
 
     @Override

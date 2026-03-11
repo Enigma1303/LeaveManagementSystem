@@ -1,0 +1,54 @@
+package com.aryan.springboot.leavemanagement.controller;
+
+import com.aryan.springboot.leavemanagement.entity.BulkJob;
+import com.aryan.springboot.leavemanagement.repository.BulkJobRepository;
+import com.aryan.springboot.leavemanagement.service.LeaveBalanceImportService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/v2/leave-balances")
+@PreAuthorize("hasRole('ADMIN')")
+public class LeaveBalanceBulkController {
+
+    private final LeaveBalanceImportService importService;
+    private final BulkJobRepository bulkJobRepository;
+
+    public LeaveBalanceBulkController(
+            LeaveBalanceImportService importService,
+            BulkJobRepository bulkJobRepository) {
+
+        this.importService = importService;
+        this.bulkJobRepository = bulkJobRepository;
+    }
+
+    @PostMapping("/import")
+    public ResponseEntity<Map<String, Object>> importLeaveBalances(
+            @RequestParam("file") MultipartFile file,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        Long jobId = importService.startImport(file, userDetails.getUsername());
+
+        return ResponseEntity.accepted().body(
+                Map.of(
+                        "jobId", jobId,
+                        "status", "QUEUED"
+                )
+        );
+    }
+
+    @GetMapping("/import/{jobId}")
+    public ResponseEntity<BulkJob> getImportStatus(@PathVariable Long jobId) {
+
+        BulkJob job = bulkJobRepository.findById(jobId)
+                .orElseThrow(() -> new RuntimeException("Job not found"));
+
+        return ResponseEntity.ok(job);
+    }
+}
