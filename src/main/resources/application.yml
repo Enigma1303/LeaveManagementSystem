@@ -45,3 +45,9 @@ springdoc:
 logging:
   level:
     com.aryan.springboot.leavemanagement: DEBUG
+
+app:
+  holiday:
+    api-url: https://tallyfy.com/national-holidays/api
+    country-code: 91
+    fallback-on-error: true

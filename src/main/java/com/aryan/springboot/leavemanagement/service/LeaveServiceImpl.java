@@ -21,7 +21,10 @@ import com.aryan.springboot.leavemanagement.response.LeaveHistoryResponse;
 import com.aryan.springboot.leavemanagement.response.LeaveStatusResponse;
 import com.aryan.springboot.leavemanagement.response.LeaveSubmitResponse;
 import com.aryan.springboot.leavemanagement.response.LeaveViewResponse;
+import com.aryan.springboot.leavemanagement.service.HolidayService;
+import com.aryan.springboot.leavemanagement.service.WorkingDayService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value; // fixed
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +36,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set; // fixed
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -43,9 +47,14 @@ public class LeaveServiceImpl implements LeaveService {
     private final LeaveStatusHistoryRepository leaveStatusHistoryRepository;
     private final LeaveTypeRepository leaveTypeRepository;
     private final LeaveBalanceService leaveBalanceService;
+    private final HolidayService holidayService;
+    private final WorkingDayService workingDayService;
     private final LeaveBalanceRepository leaveBalanceRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+
+    @Value("${app.holiday.country-code}") // fixed
+    private String countryCode;
 
     public LeaveServiceImpl(LeaveRequestRepository leaveRequestRepository,
                             LeaveStatusHistoryRepository leaveStatusHistoryRepository,
@@ -53,7 +62,9 @@ public class LeaveServiceImpl implements LeaveService {
                             LeaveBalanceService leaveBalanceService,
                             LeaveBalanceRepository leaveBalanceRepository,
                             UserRepository userRepository,
-                            NotificationService notificationService) {
+                            NotificationService notificationService,
+                            HolidayService holidayService,       // fixed
+                            WorkingDayService workingDayService) { // fixed
         this.leaveRequestRepository = leaveRequestRepository;
         this.leaveStatusHistoryRepository = leaveStatusHistoryRepository;
         this.leaveTypeRepository = leaveTypeRepository;
@@ -61,6 +72,8 @@ public class LeaveServiceImpl implements LeaveService {
         this.leaveBalanceRepository = leaveBalanceRepository;
         this.userRepository = userRepository;
         this.notificationService = notificationService;
+        this.holidayService = holidayService;       // fixed
+        this.workingDayService = workingDayService; // fixed
     }
 
     private Employee getUser(String email) {
@@ -97,25 +110,6 @@ public class LeaveServiceImpl implements LeaveService {
         if (!leave.getEmployee().getManager().getId().equals(manager.getId())) {
             throw new AccessDeniedException("You can only act on leaves of your subordinates");
         }
-    }
-
-    private int computeRequestedUnits(LocalDate startDate, LocalDate endDate,
-                                      Session startSession, Session endSession) {
-        if (startDate.isEqual(endDate)) {
-            return 1;
-        }
-        int units = 0;
-        LocalDate current = startDate;
-        while (!current.isAfter(endDate)) {
-            java.time.DayOfWeek dow = current.getDayOfWeek();
-            boolean isWeekend = (dow == java.time.DayOfWeek.SATURDAY
-                    || dow == java.time.DayOfWeek.SUNDAY);
-            if (!isWeekend) {
-                units += 2;
-            }
-            current = current.plusDays(1);
-        }
-        return (int) Math.ceil(units / 2.0);
     }
 
     // Builds NotificationDto from a LeaveRequest.
@@ -195,9 +189,22 @@ public class LeaveServiceImpl implements LeaveService {
                             + " day(s) before start date.");
         }
 
-        int requestedUnits = computeRequestedUnits(
+        // fixed - fetch public holidays and use WorkingDayService instead of computeRequestedUnits
+        Set<LocalDate> publicHolidays = holidayService.getPublicHolidays(
+                request.getStartDate().getYear(), countryCode);
+
+        if (publicHolidays.contains(request.getStartDate())) { // fixed
+            throw new BusinessRuleException(
+                    "Start date " + request.getStartDate() + " is a public holiday");
+        }
+        if (publicHolidays.contains(request.getEndDate())) { // fixed
+            throw new BusinessRuleException(
+                    "End date " + request.getEndDate() + " is a public holiday");
+        }
+
+        int requestedUnits = workingDayService.calculateWorkingDays( // fixed
                 request.getStartDate(), request.getEndDate(),
-                request.getStartSession(), request.getEndSession());
+                request.getStartSession(), request.getEndSession(), publicHolidays);
 
         if (requestedUnits > leaveType.getMaxUnitsPerRequest()) {
             throw new BusinessRuleException(
@@ -333,7 +340,6 @@ public class LeaveServiceImpl implements LeaveService {
                         request.getComment(), user);
 
                 //  Notify employee + admin asynchronously
-                // NotificationDto dto = buildDto(saved);
                 // notificationService.notifyManagerApproved(dto);
                 // notificationService.notifyAdminPendingApproval(dto);
 
