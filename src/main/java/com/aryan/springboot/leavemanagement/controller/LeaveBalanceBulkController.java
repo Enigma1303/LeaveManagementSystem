@@ -2,6 +2,7 @@ package com.aryan.springboot.leavemanagement.controller;
 
 import com.aryan.springboot.leavemanagement.entity.BulkJob;
 import com.aryan.springboot.leavemanagement.repository.BulkJobRepository;
+import com.aryan.springboot.leavemanagement.response.BulkJobResponse;
 import com.aryan.springboot.leavemanagement.service.LeaveBalanceImportService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -44,11 +45,20 @@ public class LeaveBalanceBulkController {
     }
 
     @GetMapping("/import/{jobId}")
-    public ResponseEntity<BulkJob> getImportStatus(@PathVariable Long jobId) {
+    public ResponseEntity<BulkJobResponse> getImportStatus(@PathVariable Long jobId) {
 
         BulkJob job = bulkJobRepository.findById(jobId)
                 .orElseThrow(() -> new RuntimeException("Job not found"));
 
-        return ResponseEntity.ok(job);
+        BulkJobResponse response = new BulkJobResponse(
+                job.getId(),
+                job.getStatus(),
+                job.getTotalRecords(),
+                job.getSuccessfulRecords(),
+                job.getFailedRecords(),
+                job.getCreatedAt()
+        );
+
+        return ResponseEntity.ok(response);
     }
 }
