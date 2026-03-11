@@ -7,17 +7,29 @@ import com.aryan.springboot.leavemanagement.response.LeaveStatusResponse;
 import com.aryan.springboot.leavemanagement.response.LeaveSubmitResponse;
 import com.aryan.springboot.leavemanagement.response.LeaveViewResponse;
 
+import org.springframework.data.domain.Page;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.List;
 
 public interface LeaveService {
 
     LeaveSubmitResponse submitLeave(LeaveSubmitRequest request, String email);
 
-    List<LeaveViewResponse> getLeaves(String email, LeaveStatus status, Long employeeId,
-                                      Long managerId, LocalDate startDate, LocalDate endDate,
-                                      LocalDateTime createdAt, String search);
+    Page<LeaveViewResponse> getLeaves(
+            String email,
+            LeaveStatus status,
+            Long employeeId,
+            Long managerId,
+            LocalDate startDate,
+            LocalDate endDate,
+            LocalDateTime createdAt,
+            String search,
+            int page,
+            int size,
+            String sortBy,
+            String sortDirection
+    );
 
     LeaveStatusResponse approveLeave(Long leaveId, LeaveActionRequest request, String email);
 

@@ -3,14 +3,22 @@ package com.aryan.springboot.leavemanagement.repository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+
+import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.aryan.springboot.leavemanagement.entity.LeaveRequest;
 import com.aryan.springboot.leavemanagement.entity.enums.LeaveStatus;
 
-public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long> {
+public interface LeaveRequestRepository extends
+        JpaRepository<LeaveRequest, Long>,
+        JpaSpecificationExecutor<LeaveRequest> {
 
  String COMMON_FILTERS =
          "AND (:status IS NULL OR l.status = :status) " +
@@ -20,10 +28,6 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long
                  "AND (:search IS NULL OR LOWER(l.reason) LIKE LOWER(CONCAT('%', :search, '%')) " +
                  "OR LOWER(l.employee.name) LIKE LOWER(CONCAT('%', :search, '%'))) ";
 
- // JOIN FETCH employee, leaveType and statusHistory to avoid N+1 and lazy loading
- // Currently using fetch employee to fix lazy loading and N+1 problem
- // There must be issue when i will intergrate pagination
- // Note: for myself to handle it
  String BASE_QUERY = "SELECT l FROM LeaveRequest l " +
          "JOIN FETCH l.employee e " +
          "JOIN FETCH l.leaveType lt " +
@@ -61,7 +65,6 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long
          @Param("createdAt") LocalDateTime createdAt,
          @Param("search") String search);
 
- // Count overlapping leaves
  @Query("SELECT COUNT(l) FROM LeaveRequest l WHERE l.employee.id = :employeeId " +
          "AND l.status != :excludedStatus " +
          "AND l.startDate <= :endDate AND l.endDate >= :startDate")
@@ -71,11 +74,18 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long
          @Param("endDate") LocalDate endDate,
          @Param("excludedStatus") LeaveStatus excludedStatus);
 
- // Pending leave reminder query
  @Query("""
 SELECT l FROM LeaveRequest l
 WHERE l.status = com.aryan.springboot.leavemanagement.entity.enums.LeaveStatus.PENDING
 AND l.startDate <= :threshold
 """)
  List<LeaveRequest> findPendingLeavesForReminder(@Param("threshold") LocalDate threshold);
+
+ @EntityGraph(attributePaths = {
+         "employee",
+         "leaveType",
+         "statusHistory"
+ })
+ Page<LeaveRequest> findAll(Specification<LeaveRequest> spec, Pageable pageable);
+
 }

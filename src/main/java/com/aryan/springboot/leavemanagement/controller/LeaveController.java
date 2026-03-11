@@ -15,7 +15,11 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
-
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -43,7 +47,7 @@ public class LeaveController {
     // Get Leaves
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<LeaveViewResponse>> getLeaves(
+    public ResponseEntity<Page<LeaveViewResponse>> getLeaves(
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestParam(required = false) LeaveStatus status,
             @RequestParam(required = false) Long employeeId,
@@ -51,10 +55,28 @@ public class LeaveController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime createdAt,
-            @RequestParam(required = false) String search) {
-        return ResponseEntity.ok(leaveService.getLeaves(
-                userDetails.getUsername(), status, employeeId, managerId,
-                startDate, endDate, createdAt, search));
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "DESC") String sortDirection) {
+
+        return ResponseEntity.ok(
+                leaveService.getLeaves(
+                        userDetails.getUsername(),
+                        status,
+                        employeeId,
+                        managerId,
+                        startDate,
+                        endDate,
+                        createdAt,
+                        search,
+                        page,
+                        size,
+                        sortBy,
+                        sortDirection
+                )
+        );
     }
 
     // Approve Leave

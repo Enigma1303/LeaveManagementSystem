@@ -9,6 +9,12 @@ import com.aryan.springboot.leavemanagement.entity.enums.ApprovalStage;
 import com.aryan.springboot.leavemanagement.entity.enums.LeaveStatus;
 import com.aryan.springboot.leavemanagement.entity.enums.Session;
 import com.aryan.springboot.leavemanagement.exception.BusinessRuleException;
+import com.aryan.springboot.leavemanagement.repository.specification.LeaveRequestSpecification;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import com.aryan.springboot.leavemanagement.exception.ResourceNotFoundException;
 import com.aryan.springboot.leavemanagement.repository.LeaveBalanceRepository;
 import com.aryan.springboot.leavemanagement.repository.LeaveRequestRepository;
@@ -271,49 +277,99 @@ public class LeaveServiceImpl implements LeaveService {
 
     @Transactional(readOnly = true)
     @Override
-    public List<LeaveViewResponse> getLeaves(String email, LeaveStatus status, Long employeeId,
-                                             Long managerId, LocalDate startDate, LocalDate endDate,
-                                             LocalDateTime createdAt, String search) {
+    public Page<LeaveViewResponse> getLeaves(
+            String email,
+            LeaveStatus status,
+            Long employeeId,
+            Long managerId,
+            LocalDate startDate,
+            LocalDate endDate,
+            LocalDateTime createdAt,
+            String search,
+            int page,
+            int size,
+            String sortBy,
+            String sortDirection) {
 
         log.info("Fetching leaves for: {}", email);
-        Employee user = getUser(email);
-        List<LeaveRequest> leaves = new ArrayList<>();
 
-        if (hasRole(user, "ROLE_ADMIN")) {
-            leaves = leaveRequestRepository.findAllWithFilters(
-                    status, employeeId, managerId, startDate, endDate, createdAt, search);
-        } else if (hasRole(user, "ROLE_MANAGER")) {
-            leaves.addAll(leaveRequestRepository.findByEmployeeIdWithFilters(
-                    user.getId(), status, startDate, endDate, createdAt, search));
-            leaves.addAll(leaveRequestRepository.findByManagerIdWithFilters(
-                    user.getId(), status, startDate, endDate, createdAt, search));
-            leaves.sort(Comparator.comparing(LeaveRequest::getCreatedAt).reversed());
-        } else {
-            leaves = leaveRequestRepository.findByEmployeeIdWithFilters(
-                    user.getId(), status, startDate, endDate, createdAt, search);
+        Employee user = getUser(email);
+
+        Specification<LeaveRequest> spec = null;
+
+        if (status != null) {
+            spec = LeaveRequestSpecification.status(status);
         }
 
-        return leaves.stream().map(leave -> new LeaveViewResponse(
-                        leave.getId(),
-                        leave.getEmployee().getId(),
-                        leave.getEmployee().getName(),
-                        leave.getStartDate(),
-                        leave.getEndDate(),
-                        leave.getStartSession(),
-                        leave.getEndSession(),
-                        leave.getReason(),
-                        leave.getStatus(),
-                        leave.getCreatedAt(),
-                        leave.getStatusHistory().stream()
-                                .sorted(Comparator.comparing(LeaveStatusHistory::getCreatedAt).reversed())
-                                .map(h -> new LeaveHistoryResponse(
-                                        h.getOldStatus(),
-                                        h.getNewStatus(),
-                                        h.getComment(),
-                                        h.getChangedBy().getName(),
-                                        h.getCreatedAt()))
-                                .toList()))
-                .collect(Collectors.toList());
+        if (startDate != null) {
+            Specification<LeaveRequest> condition = LeaveRequestSpecification.startDate(startDate);
+            spec = spec == null ? condition : spec.and(condition);
+        }
+
+        if (endDate != null) {
+            Specification<LeaveRequest> condition = LeaveRequestSpecification.endDate(endDate);
+            spec = spec == null ? condition : spec.and(condition);
+        }
+
+        if (hasRole(user, "ROLE_ADMIN")) {
+
+            if (employeeId != null) {
+                Specification<LeaveRequest> condition = LeaveRequestSpecification.employee(employeeId);
+                spec = spec == null ? condition : spec.and(condition);
+            }
+
+            if (managerId != null) {
+                Specification<LeaveRequest> condition = LeaveRequestSpecification.manager(managerId);
+                spec = spec == null ? condition : spec.and(condition);
+            }
+
+        } else if (hasRole(user, "ROLE_MANAGER")) {
+
+            Specification<LeaveRequest> condition =
+                    LeaveRequestSpecification.manager(user.getId())
+                            .or(LeaveRequestSpecification.employee(user.getId()));
+
+            spec = spec == null ? condition : spec.and(condition);
+
+        } else {
+
+            Specification<LeaveRequest> condition =
+                    LeaveRequestSpecification.employee(user.getId());
+
+            spec = spec == null ? condition : spec.and(condition);
+        }
+
+        Sort sort = Sort.by(
+                Sort.Direction.fromString(sortDirection),
+                sortBy
+        );
+
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        Page<LeaveRequest> leavePage =
+                leaveRequestRepository.findAll(spec, pageable);
+
+        return leavePage.map(leave -> new LeaveViewResponse(
+                leave.getId(),
+                leave.getEmployee().getId(),
+                leave.getEmployee().getName(),
+                leave.getStartDate(),
+                leave.getEndDate(),
+                leave.getStartSession(),
+                leave.getEndSession(),
+                leave.getReason(),
+                leave.getStatus(),
+                leave.getCreatedAt(),
+                leave.getStatusHistory().stream()
+                        .sorted(Comparator.comparing(LeaveStatusHistory::getCreatedAt).reversed())
+                        .map(h -> new LeaveHistoryResponse(
+                                h.getOldStatus(),
+                                h.getNewStatus(),
+                                h.getComment(),
+                                h.getChangedBy().getName(),
+                                h.getCreatedAt()))
+                        .toList()
+        ));
     }
 
     //  Approve Leave
