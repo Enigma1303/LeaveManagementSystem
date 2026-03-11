@@ -1,5 +1,7 @@
 package com.aryan.springboot.leavemanagement.controller;
-
+import com.aryan.springboot.leavemanagement.service.LeaveBalanceExportService;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import com.aryan.springboot.leavemanagement.entity.BulkJob;
 import com.aryan.springboot.leavemanagement.repository.BulkJobRepository;
 import com.aryan.springboot.leavemanagement.response.BulkJobResponse;
@@ -20,13 +22,26 @@ public class LeaveBalanceBulkController {
 
     private final LeaveBalanceImportService importService;
     private final BulkJobRepository bulkJobRepository;
-
+    private final LeaveBalanceExportService exportService;
     public LeaveBalanceBulkController(
             LeaveBalanceImportService importService,
+            LeaveBalanceExportService exportService,
             BulkJobRepository bulkJobRepository) {
 
         this.importService = importService;
+        this.exportService = exportService;
         this.bulkJobRepository = bulkJobRepository;
+    }
+
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> exportLeaveBalances() {
+
+        String csv = exportService.exportLeaveBalancesToCsv();
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=leave_balances.csv")
+                .contentType(MediaType.TEXT_PLAIN)
+                .body(csv.getBytes());
     }
 
     @PostMapping("/import")
