@@ -10,10 +10,9 @@ import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDate;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -31,7 +30,7 @@ public class HolidayApiClient {
     }
 
     @SuppressWarnings("unchecked")
-    public Set<LocalDate> fetchHolidays(String isoCode, int year) {
+    public Map<LocalDate, String> fetchHolidays(String isoCode, int year) {
         String url = apiUrl + "/" + isoCode + "/" + year + ".json";
         log.info("Calling holiday API: {}", url);
 
@@ -44,21 +43,25 @@ public class HolidayApiClient {
             if (response == null || !response.containsKey("holidays")) {
                 log.warn("Empty response from holiday API for {}/{}", isoCode, year);
                 saveLog(isoCode, year, ApiCallStatus.SUCCESS, responseTime, null);
-                return Collections.emptySet();
+                return Collections.emptyMap();
             }
 
             List<Map<String, Object>> holidays =
                     (List<Map<String, Object>>) response.get("holidays");
 
-            Set<LocalDate> holidayDates = holidays.stream()
-                    .map(h -> LocalDate.parse((String) h.get("date")))
-                    .collect(Collectors.toSet());
+            // date → name
+            Map<LocalDate, String> holidayMap = new LinkedHashMap<>();
+            for (Map<String, Object> h : holidays) {
+                LocalDate date = LocalDate.parse((String) h.get("date"));
+                String name = (String) h.getOrDefault("name", "Holiday");
+                holidayMap.put(date, name);
+            }
 
             saveLog(isoCode, year, ApiCallStatus.SUCCESS, responseTime, null);
             log.info("Fetched {} holidays for {}/{} in {}ms",
-                    holidayDates.size(), isoCode, year, responseTime);
+                    holidayMap.size(), isoCode, year, responseTime);
 
-            return holidayDates;
+            return holidayMap;
 
         } catch (Exception e) {
             long responseTime = System.currentTimeMillis() - startTime;

@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
 
   mysql:
@@ -13,15 +11,11 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
 
-  app:
-    build: src
-    container_name: leave_app
-    depends_on:
-      - mysql
-    env_file:
-      - .env
+  redis:
+    image: redis:7-alpine
+    container_name: leave_redis
     ports:
-      - "8080:8080"
+      - "6379:6379"
 
 volumes:
   mysql_data:

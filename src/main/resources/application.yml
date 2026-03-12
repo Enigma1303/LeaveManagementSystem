@@ -4,11 +4,15 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
 
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
   jpa:
     hibernate:
       ddl-auto: validate
     open-in-view: false
-
 
   mail:
     host: smtp.gmail.com
@@ -53,6 +57,7 @@ app:
     api-url: https://tallyfy.com/national-holidays/api
     country-code: 91
     fallback-on-error: true
+    cache-ttl-hours: 24
 
 management:
   endpoints:
@@ -66,4 +71,3 @@ management:
   health:
     defaults:
       enabled: true
-
