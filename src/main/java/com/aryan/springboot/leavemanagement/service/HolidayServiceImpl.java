@@ -26,6 +26,7 @@ public class HolidayServiceImpl implements HolidayService {
     private final HolidayApiClient holidayApiClient;
     private final HolidayCacheRepository holidayCacheRepository;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final HolidayCacheWriter holidayCacheWriter; 
 
     @Value("${app.holiday.fallback-on-error}")
     private boolean fallbackOnError;
@@ -48,10 +49,12 @@ public class HolidayServiceImpl implements HolidayService {
 
     public HolidayServiceImpl(HolidayApiClient holidayApiClient,
                               HolidayCacheRepository holidayCacheRepository,
-                              RedisTemplate<String, Object> redisTemplate) {
+                              RedisTemplate<String, Object> redisTemplate,
+                              HolidayCacheWriter holidayCacheWriter) { 
         this.holidayApiClient = holidayApiClient;
         this.holidayCacheRepository = holidayCacheRepository;
         this.redisTemplate = redisTemplate;
+        this.holidayCacheWriter = holidayCacheWriter; 
     }
 
     public String resolveIsoCode(String countryCode) {
@@ -90,13 +93,27 @@ public class HolidayServiceImpl implements HolidayService {
         }
         log.info("Layer 2 MISS — DB cache for {}/{}", isoCode, year);
 
-        // Layer 3: ab use karo Tallyfy API 
+        // Layer 3: ab use karo Tallyfy API
         try {
             Map<LocalDate, String> apiResult = holidayApiClient.fetchHolidays(isoCode, year);
-            Set<LocalDate> holidayDates = apiResult.keySet();
 
-            // Layer 4: Save to DB + Redis 
-            saveToDb(apiResult, isoCode, year);
+            // Response validation
+            validateApiResponse(apiResult, isoCode, year);
+
+            // Layer 4: Save to DB + Redis
+
+            // REQUIRES_NEW on public method works correctly
+            // duplicate key only rolls back that tx, not this one
+            holidayCacheWriter.saveToDb(apiResult, isoCode, year, cacheTtlHours);
+
+            // retry Layer 2 to get correct holiday set instead of relying on apiResult
+            Set<LocalDate> holidayDates = apiResult.keySet();
+            Set<LocalDate> fromDbAfterSave = getFromDb(isoCode, year);
+            if (fromDbAfterSave != null && !fromDbAfterSave.isEmpty()) {
+                holidayDates = fromDbAfterSave;
+                log.info("Using DB data after save for {}/{}", isoCode, year);
+            }
+
             saveToRedis(redisKey, holidayDates);
 
             log.info("Layer 3 HIT — API. Saved {} holidays to DB + Redis for {}/{}",
@@ -122,9 +139,26 @@ public class HolidayServiceImpl implements HolidayService {
     private Set<LocalDate> getFromRedis(String redisKey) {
         try {
             Object cached = redisTemplate.opsForValue().get(redisKey);
-            if (cached instanceof Set) {
-                return (Set<LocalDate>) cached;
+            if (cached == null) return null;
+
+            // with default typing Jackson returns Set directly
+            if (cached instanceof Set<?> set) {
+                return set.stream()
+                        .map(d -> LocalDate.parse(d.toString()))
+                        .collect(Collectors.toSet());
             }
+
+            // defensive fallback if Jackson returns List instead of Set
+            if (cached instanceof List<?> list) {
+                log.warn("Redis returned List instead of Set for key: {} — converting", redisKey);
+                return list.stream()
+                        .map(d -> LocalDate.parse(d.toString()))
+                        .collect(Collectors.toSet());
+            }
+
+            log.warn("Unexpected type from Redis for key {}: {}",
+                    redisKey, cached.getClass().getName());
+
         } catch (Exception e) {
             // Redis down he -> go to db cache now
             log.warn("Redis unavailable during GET: {}", e.getMessage());
@@ -153,28 +187,6 @@ public class HolidayServiceImpl implements HolidayService {
                 .collect(Collectors.toSet());
     }
 
-    private void saveToDb(Map<LocalDate, String> holidays, String isoCode, int year) {
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime expiresAt = now.plusHours(cacheTtlHours);
-
-        List<HolidayCache> rows = holidays.entrySet().stream()
-                .map(entry -> {
-                    HolidayCache cache = new HolidayCache();
-                    cache.setCountryCode(isoCode);
-                    cache.setYear(year);
-                    cache.setHolidayDate(entry.getKey());
-                    cache.setName(entry.getValue());
-                    cache.setFetchedAt(now);
-                    cache.setExpiresAt(expiresAt);
-                    cache.setIsInvalidated(false);
-                    return cache;
-                })
-                .toList();
-
-        holidayCacheRepository.saveAll(rows);
-        log.info("Saved {} rows to DB cache for {}/{}", rows.size(), isoCode, year);
-    }
-    
     // Admin cache invalidation
     // agar lets say govt declares a national holiday
     // toh stale data hatane ke liye admin ke paas ye power honi chahiye
@@ -195,5 +207,33 @@ public class HolidayServiceImpl implements HolidayService {
         // Invalidate DB rows
         holidayCacheRepository.invalidateCache(isoCode, year);
         log.info("DB cache invalidated for {}/{}", isoCode, year);
+    }
+
+    private void validateApiResponse(Map<LocalDate, String> apiResult, String isoCode, int year) {
+
+        if (apiResult == null || apiResult.isEmpty()) {
+            throw new BusinessRuleException(
+                    "Holiday API returned empty response for " + isoCode + "/" + year);
+        }
+
+        for (Map.Entry<LocalDate, String> entry : apiResult.entrySet()) {
+
+            LocalDate date = entry.getKey();
+            String name = entry.getValue();
+
+            if (date == null) {
+                throw new BusinessRuleException("Holiday API returned null holiday date");
+            }
+
+            if (date.getYear() != year) {
+                throw new BusinessRuleException(
+                        "Holiday API returned holiday outside requested year: " + date);
+            }
+
+            if (name == null || name.isBlank()) {
+                throw new BusinessRuleException(
+                        "Holiday API returned holiday with empty name for date: " + date);
+            }
+        }
     }
 }

@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 @Table(
         name = "holiday_cache",
         uniqueConstraints = {
-                @UniqueConstraint(columnNames = {"country_code", "holiday_date"})
+                @UniqueConstraint(columnNames = {"country_code", "year", "holiday_date"})
         }
 )
 @Getter
@@ -24,7 +24,6 @@ public class HolidayCache {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id")
     private Long id;
 
     @Column(name = "country_code", nullable = false)
