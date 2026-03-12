@@ -2,8 +2,8 @@ package com.aryan.springboot.leavemanagement;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-
 
 @SpringBootApplication
 public class LeavemanagementApplication {

@@ -2,6 +2,8 @@ package com.aryan.springboot.leavemanagement.service;
 
 import com.aryan.springboot.leavemanagement.entity.Employee;
 import com.aryan.springboot.leavemanagement.entity.LeaveBalance;
+import com.aryan.springboot.leavemanagement.entity.enums.AuditAction;
+import com.aryan.springboot.leavemanagement.entity.enums.AuditEntityType;
 import com.aryan.springboot.leavemanagement.exception.BusinessRuleException;
 import com.aryan.springboot.leavemanagement.exception.ResourceNotFoundException;
 import com.aryan.springboot.leavemanagement.repository.LeaveBalanceRepository;
@@ -19,11 +21,14 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
 
     private final LeaveBalanceRepository leaveBalanceRepository;
     private final UserRepository userRepository;
+    private final AuditService auditService; 
 
     public LeaveBalanceServiceImpl(LeaveBalanceRepository leaveBalanceRepository,
-                                   UserRepository userRepository) {
+                                   UserRepository userRepository,
+                                   AuditService auditService) { 
         this.leaveBalanceRepository = leaveBalanceRepository;
         this.userRepository = userRepository;
+        this.auditService = auditService; 
     }
 
     private LeaveBalanceResponse toResponse(LeaveBalance lb) {
@@ -133,5 +138,24 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
         balance.setUsedUnits(balance.getUsedUnits() + units);
         leaveBalanceRepository.save(balance);
         log.info("Deducted {} units on approval for employeeId={}", units, employeeId);
+    }
+    
+    @Transactional
+    @Override
+    public LeaveBalanceResponse adjustBalance(Long balanceId, Integer newAllocated, Long actorId) { 
+        LeaveBalance balance = leaveBalanceRepository.findById(balanceId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Leave balance not found for id: " + balanceId));
+
+        String oldValue = String.valueOf(balance.getAllocatedUnits()); 
+        balance.setAllocatedUnits(newAllocated);
+        LeaveBalance saved = leaveBalanceRepository.save(balance);
+
+        auditService.log(actorId, AuditEntityType.LEAVE_BALANCE, saved.getId(),
+                AuditAction.UPDATE, oldValue, String.valueOf(newAllocated));
+
+        log.info("Balance id:{} adjusted from {} to {} by actor:{}",
+                balanceId, oldValue, newAllocated, actorId);
+        return toResponse(saved);
     }
 }

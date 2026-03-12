@@ -7,11 +7,11 @@ import java.util.List;
 
 public interface LeaveTypeService {
 
-    LeaveTypeResponse createLeaveType(LeaveTypeRequest request);
+    LeaveTypeResponse createLeaveType(LeaveTypeRequest request, Long actorId);
 
-    LeaveTypeResponse updateLeaveType(Long id, LeaveTypeRequest request);
+    LeaveTypeResponse updateLeaveType(Long id, LeaveTypeRequest request, Long actorId);
 
-    LeaveTypeResponse deactivateLeaveType(Long id);
+    LeaveTypeResponse deactivateLeaveType(Long id, Long actorId);
 
     List<LeaveTypeResponse> getAllLeaveTypes();
 

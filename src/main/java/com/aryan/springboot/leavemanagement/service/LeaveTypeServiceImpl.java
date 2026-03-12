@@ -1,6 +1,8 @@
 package com.aryan.springboot.leavemanagement.service;
 
 import com.aryan.springboot.leavemanagement.entity.LeaveType;
+import com.aryan.springboot.leavemanagement.entity.enums.AuditAction;
+import com.aryan.springboot.leavemanagement.entity.enums.AuditEntityType;
 import com.aryan.springboot.leavemanagement.exception.BusinessRuleException;
 import com.aryan.springboot.leavemanagement.exception.DuplicateResourceException;
 import com.aryan.springboot.leavemanagement.exception.ResourceNotFoundException;
@@ -18,9 +20,12 @@ import java.util.List;
 public class LeaveTypeServiceImpl implements LeaveTypeService {
 
     private final LeaveTypeRepository leaveTypeRepository;
+    private final AuditService auditService; 
 
-    public LeaveTypeServiceImpl(LeaveTypeRepository leaveTypeRepository) {
+    public LeaveTypeServiceImpl(LeaveTypeRepository leaveTypeRepository,
+                                AuditService auditService) { 
         this.leaveTypeRepository = leaveTypeRepository;
+        this.auditService = auditService; 
     }
 
     private void validateRequest(LeaveTypeRequest request) {
@@ -46,7 +51,7 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
 
     @Transactional
     @Override
-    public LeaveTypeResponse createLeaveType(LeaveTypeRequest request) {
+    public LeaveTypeResponse createLeaveType(LeaveTypeRequest request, Long actorId) { 
         log.info("Creating leave type: {}", request.getName());
         if (leaveTypeRepository.existsByName(request.getName())) {
             throw new DuplicateResourceException(
@@ -62,13 +67,17 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
         leaveType.setReminderThresholdDays(request.getReminderThresholdDays());
         leaveType.setIsActive(true);
         LeaveType saved = leaveTypeRepository.save(leaveType);
+
+        // Audit — CREATE action on LEAVE_TYPE 
+        auditService.log(actorId, AuditEntityType.LEAVE_TYPE, saved.getId(), AuditAction.CREATE);
+
         log.info("Leave type created with id: {}", saved.getId());
         return toResponse(saved);
     }
 
     @Transactional
     @Override
-    public LeaveTypeResponse updateLeaveType(Long id, LeaveTypeRequest request) {
+    public LeaveTypeResponse updateLeaveType(Long id, LeaveTypeRequest request, Long actorId) { 
         log.info("Updating leave type id: {}", id);
         LeaveType leaveType = leaveTypeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -79,6 +88,9 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
                     "Leave type with name '" + request.getName() + "' already exists");
         }
         validateRequest(request);
+
+        String oldValue = leaveType.getName();
+
         leaveType.setName(request.getName());
         leaveType.setMaxUnitsPerRequest(request.getMaxUnitsPerRequest());
         leaveType.setMinAdvanceNoticeDays(request.getMinAdvanceNoticeDays());
@@ -86,19 +98,29 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
         leaveType.setMultiLevelTriggerUnits(request.getMultiLevelTriggerUnits());
         leaveType.setReminderThresholdDays(request.getReminderThresholdDays());
         LeaveType saved = leaveTypeRepository.save(leaveType);
+
+        // Audit — UPDATE action on LEAVE_TYPE 
+        auditService.log(actorId, AuditEntityType.LEAVE_TYPE, saved.getId(),
+                AuditAction.UPDATE, oldValue, saved.getName());
+
         log.info("Leave type updated: {}", saved.getId());
         return toResponse(saved);
     }
 
     @Transactional
     @Override
-    public LeaveTypeResponse deactivateLeaveType(Long id) {
+    public LeaveTypeResponse deactivateLeaveType(Long id, Long actorId) { 
         log.info("Deactivating leave type id: {}", id);
         LeaveType leaveType = leaveTypeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Leave type not found for id: " + id));
         leaveType.setIsActive(false);
         LeaveType saved = leaveTypeRepository.save(leaveType);
+
+        // Audit — UPDATE action (deactivation is an update) 
+        auditService.log(actorId, AuditEntityType.LEAVE_TYPE, saved.getId(),
+                AuditAction.UPDATE, "active", "inactive");
+
         log.info("Leave type deactivated: {}", saved.getId());
         return toResponse(saved);
     }

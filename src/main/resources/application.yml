@@ -42,6 +42,7 @@ spring:
 springdoc:
   swagger-ui:
     path: /docs
+  show-actuator: true
 
 logging:
   level:
@@ -52,3 +53,17 @@ app:
     api-url: https://tallyfy.com/national-holidays/api
     country-code: 91
     fallback-on-error: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+  health:
+    defaults:
+      enabled: true
+

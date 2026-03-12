@@ -21,4 +21,6 @@ public interface LeaveBalanceService {
     void restoreUsedUnits(Long employeeId, Long leaveTypeId, Integer year, Integer units);
 
     void checkAvailableBalance(Long employeeId, Long leaveTypeId, Integer year, Integer requestedUnits);
+
+    LeaveBalanceResponse adjustBalance(Long balanceId, Integer newAllocated, Long actorId);
 }
