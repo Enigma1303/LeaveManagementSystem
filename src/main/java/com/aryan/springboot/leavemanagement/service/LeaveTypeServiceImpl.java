@@ -97,6 +97,7 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
         leaveType.setIsMultiLevelApproval(request.getIsMultiLevelApproval());
         leaveType.setMultiLevelTriggerUnits(request.getMultiLevelTriggerUnits());
         leaveType.setReminderThresholdDays(request.getReminderThresholdDays());
+        leaveType.setIsActive(request.getIsActive());
         LeaveType saved = leaveTypeRepository.save(leaveType);
 
         // Audit — UPDATE action on LEAVE_TYPE 

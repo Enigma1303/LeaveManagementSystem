@@ -9,6 +9,15 @@ public class LeaveTypeRequest {
     @NotBlank(message = "Name is required")
     private String name;
 
+    private Boolean isActive;
+    public Boolean getIsActive() {
+        return isActive;
+    }
+
+    public void setIsActive(Boolean isActive) {
+        this.isActive = isActive;
+    }
+
     @NotNull(message = "Max units per request is required")
     @Min(value = 1, message = "Max units must be at least 1")
     private Integer maxUnitsPerRequest;

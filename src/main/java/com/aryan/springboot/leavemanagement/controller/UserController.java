@@ -1,16 +1,16 @@
 package com.aryan.springboot.leavemanagement.controller;
 
+import com.aryan.springboot.leavemanagement.response.UserResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import com.aryan.springboot.leavemanagement.request.RegisterRequest;
 import com.aryan.springboot.leavemanagement.service.AuthService;
 import jakarta.validation.Valid;
+
+import java.util.List;
 
 @Slf4j
 @RestController
@@ -21,6 +21,18 @@ public class UserController {
 
     public UserController(AuthService authService) {
         this.authService = authService;
+    }
+
+    @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<UserResponse>> getAllUsers() {
+        return ResponseEntity.ok(authService.getAllUsers());
+    }
+
+    @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<UserResponse> getUserById(@PathVariable Long id) {
+        return ResponseEntity.ok(authService.getUserById(id));
     }
 
     @PostMapping

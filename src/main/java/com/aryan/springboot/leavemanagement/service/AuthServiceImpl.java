@@ -2,12 +2,14 @@ package com.aryan.springboot.leavemanagement.service;
 
 import com.aryan.springboot.leavemanagement.entity.Authority;
 import com.aryan.springboot.leavemanagement.entity.Employee;
+import com.aryan.springboot.leavemanagement.exception.ResourceNotFoundException;
 import com.aryan.springboot.leavemanagement.repository.AuthorityRepository;
 import com.aryan.springboot.leavemanagement.repository.UserRepository;
 import com.aryan.springboot.leavemanagement.request.LoginRequest;
 import com.aryan.springboot.leavemanagement.request.RegisterRequest;
 import com.aryan.springboot.leavemanagement.response.LoginResponse;
 import com.aryan.springboot.leavemanagement.response.RegisterResponse;
+import com.aryan.springboot.leavemanagement.response.UserResponse;
 import com.aryan.springboot.leavemanagement.security.CustomUserDetails;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -18,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -41,6 +44,35 @@ public class AuthServiceImpl implements AuthService {
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
+    }
+
+    @Override
+    public UserResponse getUserById(Long id) {
+
+        Employee emp = userRepository.findById(id)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("User not found for id: " + id));
+
+        return toUserResponse(emp);
+    }
+    
+    @Override
+    public List<UserResponse> getAllUsers() {
+        return userRepository.findAll()
+                .stream()
+                .map(this::toUserResponse)
+                .toList();
+    }
+
+    private UserResponse toUserResponse(Employee emp) {
+        return new UserResponse(
+                emp.getId(),
+                emp.getName(),
+                emp.getEmail(),
+                emp.getIsActive(),
+                emp.getManager() != null ? emp.getManager().getId() : null,
+                emp.getCreatedAt()
+        );
     }
 
     @Transactional
