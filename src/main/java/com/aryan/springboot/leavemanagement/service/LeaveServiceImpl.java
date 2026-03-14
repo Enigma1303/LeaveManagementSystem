@@ -227,6 +227,7 @@ public class LeaveServiceImpl implements LeaveService {
             requiresMultiLevel = requestedUnits >= leaveType.getMultiLevelTriggerUnits();
         }
 
+        boolean isAdmin = hasRole(employee, "ROLE_ADMIN");
         LeaveRequest leave = new LeaveRequest();
         leave.setEmployee(employee);
         leave.setLeaveType(leaveType);
@@ -240,22 +241,38 @@ public class LeaveServiceImpl implements LeaveService {
         leave.setApprovalStage(ApprovalStage.MANAGER);
         leave.setIsMultiLevel(requiresMultiLevel);
 
+        if (isAdmin) {
+            // auto approve — no notification needed, no pending state
+            leave.setStatus(LeaveStatus.APPROVED);
+            leave.setApprovalStage(ApprovalStage.COMPLETED);
+        } else {
+            leave.setStatus(LeaveStatus.PENDING);
+            leave.setApprovalStage(ApprovalStage.MANAGER);
+        }
+
         LeaveRequest saved = leaveRequestRepository.save(leave);
-        writeHistory(saved, null, LeaveStatus.PENDING, "Leave submitted", employee);
 
-        //  Notify manager asynchronously after commit
-        NotificationDto dto = buildDto(saved);
-        TransactionSynchronizationManager.registerSynchronization(
-                new TransactionSynchronization() {
-                    @Override
-                    public void afterCommit() {
-                        notificationService.notifyLeaveSubmitted(dto);
+        if (isAdmin) {
+            leaveBalanceService.releasePendingUnits(employee.getId(), leaveType.getId(), year, requestedUnits);
+            deductBalance(saved);
+            writeHistory(saved, null, LeaveStatus.APPROVED, "Auto approved — admin leave", employee);
+            log.info("Admin leave auto-approved id:{} by:{} units:{}", saved.getId(), email, requestedUnits);
+        } else {
+            writeHistory(saved, null, LeaveStatus.PENDING, "Leave submitted", employee);
+
+            NotificationDto dto = buildDto(saved);
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            notificationService.notifyLeaveSubmitted(dto);
+                        }
                     }
-                }
-        );
+            );
+            log.info("Leave submitted id:{} by:{} units:{} multiLevel:{}",
+                    saved.getId(), email, requestedUnits, requiresMultiLevel);
+        }
 
-        log.info("Leave submitted id:{} by:{} units:{} multiLevel:{}",
-                saved.getId(), email, requestedUnits, requiresMultiLevel);
         return new LeaveSubmitResponse(saved.getId(), saved.getStatus(), saved.getCreatedAt());
     }
 
@@ -497,7 +514,9 @@ public class LeaveServiceImpl implements LeaveService {
                 new TransactionSynchronization() {
                     @Override
                     public void afterCommit() {
-                        notificationService.notifyLeaveCancelled(dto);
+                        //notificationService.notifyLeaveCancelled(dto);
+                        notificationService.notifyLeaveCancelledManager(dto); // own thread
+                        notificationService.notifyLeaveCancelledAdmin(dto);   // own thread
                     }
                 }
         );

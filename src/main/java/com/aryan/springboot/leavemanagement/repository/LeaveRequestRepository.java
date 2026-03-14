@@ -66,13 +66,13 @@ public interface LeaveRequestRepository extends
          @Param("search") String search);
 
  @Query("SELECT COUNT(l) FROM LeaveRequest l WHERE l.employee.id = :employeeId " +
-         "AND l.status != :excludedStatus " +
+         "AND l.status NOT IN :excludedStatuses " +
          "AND l.startDate <= :endDate AND l.endDate >= :startDate")
  Long countOverlappingLeaves(
          @Param("employeeId") Long employeeId,
          @Param("startDate") LocalDate startDate,
          @Param("endDate") LocalDate endDate,
-         @Param("excludedStatus") LeaveStatus excludedStatus);
+         @Param("excludedStatuses") List<LeaveStatus> excludedStatuses);
 
  @Query("""
 SELECT l FROM LeaveRequest l

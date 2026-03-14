@@ -12,6 +12,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -42,9 +43,10 @@ public class LeaveValidationService {
         }
 
         // overlapping leave check aur ha rejected leaves ko pehle hata lena
+        // Ab list is req since cancelled and rejected dono ko hatana he
         Long overlappingCount = leaveRequestRepository.countOverlappingLeaves(
                 employee.getId(), request.getStartDate(), request.getEndDate(),
-                LeaveStatus.REJECTED);
+                List.of(LeaveStatus.REJECTED, LeaveStatus.CANCELLED));
         if (overlappingCount > 0) {
             log.warn("Overlapping leave for employee: {} between {} and {}",
                     employee.getEmail(), request.getStartDate(), request.getEndDate());

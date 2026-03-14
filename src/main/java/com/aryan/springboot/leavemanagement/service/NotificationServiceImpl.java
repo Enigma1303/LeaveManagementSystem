@@ -93,37 +93,88 @@ public class NotificationServiceImpl implements NotificationService {
 
     // Leave Cancelled → notify Manager + Admin if admin was involved
 
+    // Splitting into 2 diff
+//    @Async("notificationExecutor")
+//    @Override
+//    public void notifyLeaveCancelled(NotificationDto dto) {
+//        String subject = dto.getEmployeeName() + " has cancelled their leave";
+//        String body = "has cancelled their leave request.";
+//
+//        if (dto.getManagerEmail() != null) {
+//            String managerBody = "Dear " + dto.getManagerName() + ",\n\n"
+//                    + dto.getEmployeeName() + " " + body + "\n\n"
+//                    + details(dto)
+//                    + footer();
+//            sendAndLog(dto.getLeaveId(), dto.getManagerId(), dto.getManagerEmail(),
+//                    NotificationType.CANCELLED, subject, managerBody);
+//        } else {
+//            log.warn("No manager assigned for leaveId:{} skipping manager cancellation notification",
+//                    dto.getLeaveId());
+//        }
+//
+//        boolean adminWasInvolved = dto.getStatus() == LeaveStatus.MANAGER_APPROVED
+//                || dto.getStatus() == LeaveStatus.APPROVED;
+//
+//        if (adminWasInvolved && dto.getAdminEmail() != null) {
+//            String adminBody = "Dear " + dto.getAdminName() + ",\n\n"
+//                    + dto.getEmployeeName() + " " + body + "\n\n"
+//                    + details(dto)
+//                    + "Note : This leave had reached admin approval stage.\n"
+//                    + footer();
+//            sendAndLog(dto.getLeaveId(), dto.getAdminId(), dto.getAdminEmail(),
+//                    NotificationType.CANCELLED, subject, adminBody);
+//            log.info("Admin notified of cancellation for leaveId:{}", dto.getLeaveId());
+//        }
+//    }
+
     @Async("notificationExecutor")
     @Override
-    public void notifyLeaveCancelled(NotificationDto dto) {
-        String subject = dto.getEmployeeName() + " has cancelled their leave";
-        String body = "has cancelled their leave request.";
-
-        if (dto.getManagerEmail() != null) {
-            String managerBody = "Dear " + dto.getManagerName() + ",\n\n"
-                    + dto.getEmployeeName() + " " + body + "\n\n"
-                    + details(dto)
-                    + footer();
-            sendAndLog(dto.getLeaveId(), dto.getManagerId(), dto.getManagerEmail(),
-                    NotificationType.CANCELLED, subject, managerBody);
-        } else {
+    public void notifyLeaveCancelledManager(NotificationDto dto) {
+        if (dto.getManagerEmail() == null) {
             log.warn("No manager assigned for leaveId:{} skipping manager cancellation notification",
                     dto.getLeaveId());
+            return;
         }
+        String subject = dto.getEmployeeName() + " has cancelled their leave";
+        String managerBody = "Dear " + dto.getManagerName() + ",\n\n"
+                + dto.getEmployeeName() + " has cancelled their leave request.\n\n"
+                + details(dto)
+                + footer();
+        sendAndLog(dto.getLeaveId(), dto.getManagerId(), dto.getManagerEmail(),
+                NotificationType.CANCELLED, subject, managerBody);
+    }
 
+    // Leave Cancelled → notify Admin if admin was involved
+    // fixed — separate @Async method so admin email fires in parallel with manager email
+
+    @Async("notificationExecutor")
+    @Override
+    public void notifyLeaveCancelledAdmin(NotificationDto dto) {
+        // only notify admin if leave had reached admin stage
         boolean adminWasInvolved = dto.getStatus() == LeaveStatus.MANAGER_APPROVED
                 || dto.getStatus() == LeaveStatus.APPROVED;
 
-        if (adminWasInvolved && dto.getAdminEmail() != null) {
-            String adminBody = "Dear " + dto.getAdminName() + ",\n\n"
-                    + dto.getEmployeeName() + " " + body + "\n\n"
-                    + details(dto)
-                    + "Note : This leave had reached admin approval stage.\n"
-                    + footer();
-            sendAndLog(dto.getLeaveId(), dto.getAdminId(), dto.getAdminEmail(),
-                    NotificationType.CANCELLED, subject, adminBody);
-            log.info("Admin notified of cancellation for leaveId:{}", dto.getLeaveId());
+        if (!adminWasInvolved) {
+            log.info("Admin not involved in leaveId:{} skipping admin cancellation notification",
+                    dto.getLeaveId());
+            return;
         }
+
+        if (dto.getAdminEmail() == null) {
+            log.warn("No admin email found for leaveId:{} skipping admin cancellation notification",
+                    dto.getLeaveId());
+            return;
+        }
+
+        String subject = dto.getEmployeeName() + " has cancelled their leave";
+        String adminBody = "Dear " + dto.getAdminName() + ",\n\n"
+                + dto.getEmployeeName() + " has cancelled their leave request.\n\n"
+                + details(dto)
+                + "Note : This leave had reached admin approval stage.\n"
+                + footer();
+        sendAndLog(dto.getLeaveId(), dto.getAdminId(), dto.getAdminEmail(),
+                NotificationType.CANCELLED, subject, adminBody);
+        log.info("Admin notified of cancellation for leaveId:{}", dto.getLeaveId());
     }
 
     // Manager Approved → notify Employee (multi-level)
