@@ -119,27 +119,28 @@ public class LeaveServiceImpl implements LeaveService {
                 .map(b -> b.getAllocatedUnits() - b.getUsedUnits() - b.getPendingUnits())
                 .orElse(null);
 
-        return new NotificationDto(
-                leave.getId(),
-                leave.getStartDate(),
-                leave.getEndDate(),
-                leave.getRequestedUnits(),
-                leave.getReason(),
-                leave.getRejectionReason(),
-                leave.getStatus(),
-                leave.getApprovalStage(),
-                leave.getLeaveType().getName(),
-                emp.getId(),
-                emp.getName(),
-                emp.getEmail(),
-                manager != null ? manager.getId()    : null,
-                manager != null ? manager.getName()  : null,
-                manager != null ? manager.getEmail() : null,
-                admin   != null ? admin.getId()      : null,
-                admin   != null ? admin.getName()    : null,
-                admin   != null ? admin.getEmail()   : null,
-                remaining
-        );
+        return NotificationDto.builder()
+                .leaveId(leave.getId())
+                .startDate(leave.getStartDate())
+                .endDate(leave.getEndDate())
+                .requestedUnits(leave.getRequestedUnits())
+                .reason(leave.getReason())
+                .rejectionReason(leave.getRejectionReason())
+                .status(leave.getStatus())
+                .approvalStage(leave.getApprovalStage())
+                .leaveTypeName(leave.getLeaveType().getName())
+                .isMultiLevel(leave.getIsMultiLevel()) // fixed — needed for admin cancel notification
+                .employeeId(emp.getId())
+                .employeeName(emp.getName())
+                .employeeEmail(emp.getEmail())
+                .managerId(manager != null ? manager.getId()    : null)
+                .managerName(manager != null ? manager.getName()  : null)
+                .managerEmail(manager != null ? manager.getEmail() : null)
+                .adminId(admin   != null ? admin.getId()      : null)
+                .adminName(admin   != null ? admin.getName()    : null)
+                .adminEmail(admin   != null ? admin.getEmail()   : null)
+                .remainingBalance(remaining)
+                .build();
     }
 
     private void deductBalance(LeaveRequest leave) {
@@ -228,6 +229,17 @@ public class LeaveServiceImpl implements LeaveService {
         }
 
         boolean isAdmin = hasRole(employee, "ROLE_ADMIN");
+
+        // Incase manager ka manager nhi he toh unconditionally requireMultiLevel->true
+        boolean isManagerWithNoManager = hasRole(employee, "ROLE_MANAGER")
+                && !hasRole(employee, "ROLE_ADMIN")
+                && employee.getManager() == null;
+        if (isManagerWithNoManager) {
+            requiresMultiLevel = true;
+            log.info("Manager {} has no manager — forcing isMultiLevel=true, admin approval required",
+                    employee.getEmail());
+        }
+
         LeaveRequest leave = new LeaveRequest();
         leave.setEmployee(employee);
         leave.setLeaveType(leaveType);
@@ -265,7 +277,13 @@ public class LeaveServiceImpl implements LeaveService {
                     new TransactionSynchronization() {
                         @Override
                         public void afterCommit() {
-                            notificationService.notifyLeaveSubmitted(dto);
+                            if (isManagerWithNoManager) {
+                                // sidha admin pe escalate kardo
+                                notificationService.notifyAdminPendingApproval(dto);
+                                log.info("Admin notified for manager-with-no-manager leave:{}", saved.getId());
+                            } else {
+                                notificationService.notifyLeaveSubmitted(dto);
+                            }
                         }
                     }
             );

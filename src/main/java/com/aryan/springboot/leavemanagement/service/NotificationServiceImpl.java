@@ -152,7 +152,8 @@ public class NotificationServiceImpl implements NotificationService {
     public void notifyLeaveCancelledAdmin(NotificationDto dto) {
         // only notify admin if leave had reached admin stage
         boolean adminWasInvolved = dto.getStatus() == LeaveStatus.MANAGER_APPROVED
-                || dto.getStatus() == LeaveStatus.APPROVED;
+                || dto.getStatus() == LeaveStatus.APPROVED
+                || Boolean.TRUE.equals(dto.getIsMultiLevel());
 
         if (!adminWasInvolved) {
             log.info("Admin not involved in leaveId:{} skipping admin cancellation notification",

@@ -23,6 +23,7 @@ public class NotificationDto {
     private final LeaveStatus status;
     private final ApprovalStage approvalStage;
     private final String leaveTypeName;
+    private final Boolean isMultiLevel;
 
     // Employee
     private final Long employeeId;
@@ -57,6 +58,7 @@ public class NotificationDto {
                 .status(leave.getStatus())
                 .approvalStage(leave.getApprovalStage())
                 .leaveTypeName(leave.getLeaveType().getName())
+                .isMultiLevel(leave.getIsMultiLevel()) // fixed
 
                 .employeeId(employee.getId())
                 .employeeName(employee.getName())
