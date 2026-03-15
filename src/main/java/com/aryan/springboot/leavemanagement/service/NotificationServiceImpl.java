@@ -271,4 +271,12 @@ public class NotificationServiceImpl implements NotificationService {
     private String footer() {
         return "\n\nLeave Management System";
     }
+
+    @Async("notificationExecutor")
+    @Override
+    public void sendReminderEmail(String recipientEmail, String subject, String body,
+                                  Long leaveId, Long recipientId) {
+        sendAndLog(leaveId, recipientId, recipientEmail,
+                NotificationType.REMINDER, subject, body);
+    }
 }

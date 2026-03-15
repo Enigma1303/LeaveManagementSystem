@@ -81,6 +81,18 @@ AND l.startDate <= :threshold
 """)
  List<LeaveRequest> findPendingLeavesForReminder(@Param("threshold") LocalDate threshold);
 
+ @Query("""
+    SELECT DISTINCT l FROM LeaveRequest l
+    JOIN FETCH l.employee
+    JOIN FETCH l.leaveType
+    WHERE l.status IN :statuses
+      AND l.startDate BETWEEN :today AND :maxThreshold
+""")
+ List<LeaveRequest> findPendingLeavesForReminder(
+         @Param("statuses") List<LeaveStatus> statuses,
+         @Param("today") LocalDate today,
+         @Param("maxThreshold") LocalDate maxThreshold);
+
  @EntityGraph(attributePaths = {
          "employee",
          "leaveType",

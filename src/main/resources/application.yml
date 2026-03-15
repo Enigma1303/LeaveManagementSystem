@@ -35,7 +35,8 @@ spring:
 
   leave:
     reminder:
-      days-before-start: 2
+      cron: "*/30 * * * * *"
+      days-before-start: 30
 
 springdoc:
   swagger-ui:

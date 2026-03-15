@@ -12,4 +12,5 @@ public interface NotificationService {
     void notifyLeaveCancelledAdmin(NotificationDto dto);
     void notifyManagerApproved(NotificationDto dto);
     void notifyAdminPendingApproval(NotificationDto dto);
+    void sendReminderEmail(String recipientEmail, String subject, String body, Long leaveId, Long recipientId);
 }
