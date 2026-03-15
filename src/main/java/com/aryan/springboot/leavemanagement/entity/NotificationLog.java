@@ -2,6 +2,7 @@ package com.aryan.springboot.leavemanagement.entity;
 
 import com.aryan.springboot.leavemanagement.entity.enums.NotificationStatus;
 import com.aryan.springboot.leavemanagement.entity.enums.NotificationType;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -23,12 +24,16 @@ public class NotificationLog {
     @Column(name = "id")
     private Long id;
 
+
+    // hibernateLazyInitializer causes "no session" error during JSON serialization
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "leave_request_id", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private LeaveRequest leaveRequest;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "recipient_id", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Employee recipient;
 
     @Enumerated(EnumType.STRING)

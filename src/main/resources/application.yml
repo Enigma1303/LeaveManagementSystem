@@ -33,12 +33,6 @@ spring:
     secret: ${JWT_SECRET}
     expiration: ${JWT_EXPIRATION}
 
-  notification:
-    retry:
-      max-attempts: 3
-      interval-seconds: 30
-      backoff-multiplier: 2
-
   leave:
     reminder:
       days-before-start: 2
@@ -58,6 +52,12 @@ app:
     country-code: 91
     fallback-on-error: true
     cache-ttl-hours: 24
+
+  notification:
+    retry:
+      max-attempts: 3
+      interval-seconds: 10
+      backoff-multiplier: 2
 
 management:
   endpoints:
