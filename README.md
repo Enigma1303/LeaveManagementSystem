@@ -1,104 +1,278 @@
-# Employee Leave and Approval Management System
-A Spring Boot REST API for managing employee leave requests with role-based access control.
+## Project Overview
+<img width="1724" height="894" alt="image" src="https://github.com/user-attachments/assets/da444752-5d47-4c1f-a0e9-58bb009eae6b" />
+The Leave Management System is a high-performance, event-driven backend service designed to automate and streamline employee leave requests, approvals, and leave balance management.
+
+## Core Features
+
+### Role-Based Access Control (RBAC)
+
+The system enforces strict access control with distinct workflows for:
+
+- **Employees**
+  - Submit leave requests
+  - View leave balances and history
+
+- **Managers**
+  - Approve or reject employee leave requests
+  - View pending approvals
+
+- **System Admins**
+  - Configure leave policies
+  - Import/export leave data
+  - Manage system audit logs
+
+---
+
+### Advanced Leave Validation
+
+The leave engine performs automatic validation and calculation before persisting a request:
+
+- Validates leave date ranges and overlapping requests
+- Enforces advance notice rules per leave type
+- Limits maximum leave units per request
+- Dynamically calculates **working days only**
+- Automatically excludes:
+  - Weekends
+  - Public holidays
+
+---
+
+### Hierarchical Holiday Resolution
+
+Public holidays are resolved through a **multi-layer lookup hierarchy**:
+
+1. **Redis Cache**
+   - Sub-millisecond lookup for previously cached holidays.
+
+2. **Database Cache (MySQL)**
+   - Stores previously resolved holiday data.
+
+3. **External Holiday API**
+   - Used only if cache misses occur.
+
+When holidays are fetched from the external API:
+
+- Data is written back to the database using a **REQUIRES_NEW transaction**
+- This ensures the main leave request transaction remains isolated from API failures.
+
+---
+
+### Event-Driven Background Processing
+
+The system decouples background tasks from core business logic using asynchronous event processing.
+
+Background operations include:
+
+- Email notifications
+- Bulk data imports
+- Bulk export report generation
+
+Execution flow:
+
+1. Main transaction commits successfully.
+2. `afterCommit()` triggers an event.
+3. `@Async` worker processes the task.
+
+This guarantees **fast API responses** while ensuring reliable execution of non-critical processes.
+
+---
+
+### Resilient Task Scheduling
+
+The system includes a robust scheduling mechanism to handle operational tasks.
+
+Key capabilities:
+
+- **Exponential Backoff Retries**
+  - Automatically retries failed email notifications.
+
+- **Daily Scheduled Jobs**
+  - Sends reminders for pending manager approvals.
+
+- **Fault-tolerant processing**
+  - Ensures tasks are retried without blocking the main system.
+
+---
+
+### Strict Data Auditability
+
+Every system action is permanently recorded to maintain traceability and compliance.
+
+Tracked events include:
+
+- Leave request creation
+- Approval and rejection decisions
+- Leave cancellations
+- Administrative actions
+
+Audit tables:
+
+- `leave_status_history`
+- `audit_log`
+
 
 ## Tech Stack
-- Java 21
-- Spring Boot
-- Spring Security + JWT
-- Spring Data JPA
-- MySQL (Docker)
-- Swagger UI
 
-## Roles
-- **Admin** — manages users, views all leave requests
-- **Manager** — approves/rejects leave requests of subordinates
-- **Employee** — submits and views own leave requests
+| Layer | Technology |
+|---|---|
+| Language | Java 21 |
+| Framework | Spring Boot 4.0.3 |
+| Security | Spring Security + JWT |
+| Database | MySQL 8 (Docker) |
+| Cache | Redis (Docker) |
+| ORM | Spring Data JPA / Hibernate 7 |
+| Email | Spring Mail (Gmail SMTP) |
+| API Docs | SpringDoc OpenAPI (Swagger) |
+| Build | Maven |
+| Containerisation | Docker + Docker Compose |
 
-## API Endpoints
+---
 
-### Authentication
-| Method | Endpoint | Access | Description |
-|--------|----------|--------|-------------|
-| POST | `/api/auth/login` | Public | Login and get JWT token |
-| POST | `/api/users` | Admin only | Register new user |
+---
 
-### Leave Management
-| Method | Endpoint | Access | Description |
-|--------|----------|--------|-------------|
-| POST | `/api/leaves` | Authenticated | Submit leave request |
-| GET | `/api/leaves` | Authenticated | View leaves (role based) |
-| PATCH | `/api/leaves/{id}` | Manager/Admin | Approve or reject leave |
+## Features
 
-## Filtering
-```
-GET /api/leaves?status=PENDING
-GET /api/leaves?startDate=2026-03-01
-GET /api/leaves?endDate=2026-04-01
-GET /api/leaves?search=medical
-GET /api/leaves?employeeId=2
-GET /api/leaves?managerId=1
-GET /api/leaves?createdAt=2026-02-23T00:00:00
-```
+---
 
-## Business Rules
-- End date cannot be before start date
-- Overlapping leave requests are blocked
-- Only valid status transitions allowed: PENDING → APPROVED or REJECTED
-- Once approved or rejected, leave status cannot be modified
-- Managers can only update leave requests of their direct subordinates
-
-## Ordering
-- All leave responses are ordered by `createdAt DESC` by default
-- Status history within each leave is ordered by `createdAt DESC`
-
-## Running the Application
+## Getting Started
 
 ### Prerequisites
+
 - Java 21
-- Docker
+- Maven
+- Docker + Docker Compose
 
-### Start MySQL with Docker
+### 1. Clone the repository
+
 ```bash
-docker run --name mysql-leave -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=leavedb -p 3306:3306 -d mysql:8
+git clone https://github.com/Enigma1303/LeaveManagementSystem.git
+cd leave-management
 ```
 
-### Configure `application.properties`
-```properties
-spring.datasource.url=jdbc:mysql://localhost:3307/leavemanagement
-spring.datasource.username=root
-spring.datasource.password=secret
-spring.jpa.hibernate.ddl-auto=validate
+### 2. Create `.env` file
+
+```env
+DB_URL=jdbc:mysql://mysql:3306/leavemanagement
+DB_USERNAME=root
+DB_PASSWORD=yourpassword
+MYSQL_ROOT_PASSWORD=yourpassword
+MYSQL_DATABASE=leavemanagement
+JWT_SECRET=your-256-bit-secret-key
+JWT_EXPIRATION=86400000
+MAIL_USERNAME=your@gmail.com
+MAIL_PASSWORD=your-app-password
+REDIS_HOST=redis
+REDIS_PORT=6379
 ```
 
-### Run the app
+> For Gmail, generate an App Password at [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
+
+### 3. Start MySQL and Redis containers
+
+```bash
+docker-compose up -d mysql redis
+```
+
+### 4. Run the application
+
 ```bash
 ./mvnw spring-boot:run
 ```
 
-### Run tests
+### 5. Access Swagger UI
+
+```
+http://localhost:8080/docs
+```
+
+### Running everything via Docker Compose
+
 ```bash
-./mvnw test
+docker-compose up -d
 ```
 
-## API Documentation
-Swagger UI available at:
-```
-http://localhost:8080/swagger-ui/index.html
-```
+> MySQL runs on host port `3307`, Redis on `6380`, app on `8080`.
 
-## Security
-- JWT tokens required in `Authorization: Bearer <token>` header for all protected endpoints
-- Tokens contain user ID and role information
-- Only admins can register new users
+---
 
-## Recent Changes
-- Removed direct repository access from controller layer, all data resolution moved to service layer
-- Added centralized `getUser(String email)` helper in service to eliminate repeated repository calls
-- Replaced scattered status transition checks with a transition map enforcing valid state changes only
-- Added default `ORDER BY createdAt DESC` ordering to all repository queries
-- Fixed merged leave list ordering for manager role after combining own and subordinates' leaves
-- Added status history sorting by `createdAt DESC` within each leave response
-- Implemented `createdAt` filter which was previously accepted but silently ignored
-- Added SLF4J logging across all service classes, controllers, and GlobalExceptionHandler
-- Removed past date restriction on leave submission to support emergency and retroactive requests
-- Updated service interface to accept `String email` instead of `Users` entity
+## Environment Variables
+
+| Variable | Description | Example |
+|---|---|---|
+| `DB_URL` | JDBC URL for MySQL | `jdbc:mysql://mysql:3306/leavemanagement` |
+| `DB_USERNAME` | MySQL username | `root` |
+| `DB_PASSWORD` | MySQL password | `secret` |
+| `JWT_SECRET` | HS256 signing key (min 32 chars) | `my-very-long-secret-key-here` |
+| `JWT_EXPIRATION` | Token expiry in ms | `86400000` (24h) |
+| `MAIL_USERNAME` | Gmail address | `you@gmail.com` |
+| `MAIL_PASSWORD` | Gmail App Password | `abcd efgh ijkl mnop` |
+| `REDIS_HOST` | Redis hostname | `redis` (Docker) or `localhost` |
+| `REDIS_PORT` | Redis port | `6379` |
+
+---
+
+## API Reference
+
+### Auth
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| POST | `/api/auth/login` | Public | Returns JWT token |
+
+### Users
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| POST | `/api/users` | Admin | Create employee/manager |
+| GET | `/api/users` | Admin | List all users |
+| GET | `/api/users/{id}` | Admin | Get user by id |
+
+### Leave Types
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| POST | `/api/leave-types` | Admin | Create leave type |
+| GET | `/api/leave-types` | Admin | List all leave types |
+| GET | `/api/leave-types/active` | All | List active leave types |
+| GET | `/api/leave-types/{id}` | Admin | Get leave type |
+| PUT | `/api/leave-types/{id}` | Admin | Update leave type |
+| DELETE | `/api/leave-types/{id}` | Admin | Deactivate leave type |
+
+### Leaves
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| POST | `/api/v2/leaves` | Employee | Submit leave request |
+| GET | `/api/v2/leaves` | All | Get leaves (role-scoped + filtered) |
+| POST | `/api/v2/leaves/{id}/approve` | Manager/Admin | Approve leave |
+| POST | `/api/v2/leaves/{id}/reject` | Manager/Admin | Reject leave |
+| POST | `/api/v2/leaves/{id}/cancel` | Employee | Cancel own leave |
+| GET | `/api/v2/leave-requests/export` | All | Export leaves as CSV |
+
+### Leave Balances
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| GET | `/api/v2/leave-balances` | Employee/Manager | View own/team balances |
+| GET | `/api/v2/leave-balances/{employeeId}` | Admin/Manager | View specific employee balance |
+| POST | `/api/v2/leave-balances/import` | Admin | Bulk import via CSV |
+| GET | `/api/v2/leave-balances/import/{jobId}` | Admin | Poll import job status |
+| GET | `/api/v2/leave-balances/export` | Admin | Export balances as CSV |
+
+### Holiday Cache
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| DELETE | `/api/v2/holidays/cache` | Admin | Invalidate holiday cache |
+
+### Notifications
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| GET | `/api/v2/notifications/failed` | Admin | List failed/exhausted notifications |
+| POST | `/api/v2/notifications/{id}/retry` | Admin | Retrigger notification manually |
+### Metrics
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| GET | `/api/v2/metrics` | Admin | Business metrics by time period |
+
+### Health
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| GET | `/actuator/health` | Public | Health status (DB, mail, Redis, disk) |
+
+---
+
