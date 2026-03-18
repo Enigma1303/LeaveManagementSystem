@@ -25,29 +25,36 @@ public class HolidayCacheWriter {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void saveToDb(Map<LocalDate, String> holidays, String isoCode,
                          int year, long cacheTtlHours) {
+
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime expiresAt = now.plusHours(cacheTtlHours);
 
-        List<HolidayCache> rows = holidays.entrySet().stream()
-                .map(entry -> {
-                    HolidayCache cache = new HolidayCache();
-                    cache.setCountryCode(isoCode);
-                    cache.setYear(year);
-                    cache.setHolidayDate(entry.getKey());
-                    cache.setName(entry.getValue());
-                    cache.setFetchedAt(now);
-                    cache.setExpiresAt(expiresAt);
-                    cache.setIsInvalidated(false);
-                    return cache;
-                })
-                .toList();
+        int savedCount = 0;
 
-        try {
-            holidayCacheRepository.saveAll(rows);
-            log.info("Saved {} rows to DB cache for {}/{}", rows.size(), isoCode, year);
-        } catch (Exception e) {
-            log.warn("Duplicate holiday cache for {}/{} — skipping: {}",
-                    isoCode, year, e.getMessage());
+        for (Map.Entry<LocalDate, String> entry : holidays.entrySet()) {
+
+            HolidayCache cache = new HolidayCache();
+            cache.setCountryCode(isoCode);
+            cache.setYear(year);
+            cache.setHolidayDate(entry.getKey());
+            cache.setName(entry.getValue());
+            cache.setFetchedAt(now);
+            cache.setExpiresAt(expiresAt);
+            cache.setIsInvalidated(false);
+
+            try {
+                holidayCacheRepository.save(cache);
+                savedCount++;
+            } catch (org.springframework.dao.DataIntegrityViolationException e) {
+                log.debug("Duplicate holiday skipped for {}/{}/{}",
+                        isoCode, year, entry.getKey());
+            } catch (Exception e) {
+                log.error("Failed to save holiday cache for {}/{}/{}",
+                        isoCode, year, entry.getKey(), e);
+                throw e;
+            }
         }
+
+        log.info("Saved {} new rows to DB cache for {}/{}", savedCount, isoCode, year);
     }
 }

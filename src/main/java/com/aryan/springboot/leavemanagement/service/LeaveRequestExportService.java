@@ -29,7 +29,6 @@ public class LeaveRequestExportService {
                     .append(r.getEndDate()).append(",")
                     .append(r.getStatus()).append("\n");
         }
-
         return csv.toString();
     }
 }

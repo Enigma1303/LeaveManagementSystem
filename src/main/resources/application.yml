@@ -56,8 +56,8 @@ app:
 
   notification:
     retry:
-      max-attempts: 3
-      interval-seconds: 10
+      max-attempts: 4
+      interval-seconds: 5
       backoff-multiplier: 2
 
 management:

@@ -6,9 +6,9 @@ import com.aryan.springboot.leavemanagement.repository.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.InputStreamReader;
 
 @Slf4j
@@ -27,28 +27,32 @@ public class LeaveBalanceImportProcessor {
             UserRepository UserRepository,
             LeaveTypeRepository leaveTypeRepository,
             LeaveBalanceRepository leaveBalanceRepository) {
-
         this.bulkJobRepository = bulkJobRepository;
         this.bulkJobErrorRepository = bulkJobErrorRepository;
         this.UserRepository = UserRepository;
         this.leaveTypeRepository = leaveTypeRepository;
         this.leaveBalanceRepository = leaveBalanceRepository;
     }
-    @Async
-    public void process(Long jobId, MultipartFile file) {
+
+    @Async("notificationExecutor")
+    public void process(Long jobId, byte[] fileBytes) {
 
         BulkJob job = bulkJobRepository.findById(jobId)
                 .orElseThrow();
 
         job.setStatus(BulkJobStatus.PROCESSING);
+        job.setStartedAt(java.time.LocalDateTime.now());
         bulkJobRepository.save(job);
+
+        log.info("BulkJob {} started processing", jobId);
 
         int total = 0;
         int success = 0;
         int failed = 0;
 
+        // fixed — read from byte array, never touches HTTP request
         try (BufferedReader reader =
-                     new BufferedReader(new InputStreamReader(file.getInputStream()))) {
+                     new BufferedReader(new InputStreamReader(new ByteArrayInputStream(fileBytes)))) {
 
             String line;
             int row = 0;
@@ -56,39 +60,37 @@ public class LeaveBalanceImportProcessor {
             while ((line = reader.readLine()) != null) {
 
                 row++;
-
-                if (row == 1) continue;
+                if (row == 1) continue; // skip header
 
                 total++;
+                String trimmed = line.trim();
+                if (trimmed.isEmpty()) continue; // skip blank lines
 
                 try {
-
-                    String[] parts = line.split(",");
+                    String[] parts = trimmed.split(",");
 
                     if (parts.length != 3) {
-                        throw new RuntimeException("Invalid CSV format");
+                        throw new RuntimeException(
+                                "Expected 3 columns (email, leaveTypeName, allocatedUnits) but got " + parts.length);
                     }
 
-                    String email = parts[0].trim();
-                    String leaveTypeName = parts[1].trim();
+                    String email           = parts[0].trim();
+                    String leaveTypeName   = parts[1].trim();
                     Integer allocatedUnits = Integer.parseInt(parts[2].trim());
 
                     Employee employee = UserRepository
                             .findByEmailWithAuthorities(email)
-                            .orElseThrow(() -> new RuntimeException("Employee not found"));
+                            .orElseThrow(() -> new RuntimeException("Employee not found: " + email));
 
                     LeaveType leaveType = leaveTypeRepository
                             .findByName(leaveTypeName)
-                            .orElseThrow(() -> new RuntimeException("Leave type not found"));
+                            .orElseThrow(() -> new RuntimeException("Leave type not found: " + leaveTypeName));
 
                     int year = java.time.LocalDate.now().getYear();
 
                     LeaveBalance balance = leaveBalanceRepository
                             .findByEmployeeIdAndLeaveTypeIdAndYear(
-                                    employee.getId(),
-                                    leaveType.getId(),
-                                    year
-                            )
+                                    employee.getId(), leaveType.getId(), year)
                             .orElseGet(() -> {
                                 LeaveBalance newBalance = new LeaveBalance();
                                 newBalance.setEmployee(employee);
@@ -100,32 +102,38 @@ public class LeaveBalanceImportProcessor {
                             });
 
                     balance.setAllocatedUnits(allocatedUnits);
-
                     leaveBalanceRepository.save(balance);
 
                     success++;
+                    log.info("BulkJob {} row {} — OK: {}", jobId, row, email);
 
                 } catch (Exception ex) {
-
                     failed++;
+                    log.warn("BulkJob {} row {} — FAILED: {}", jobId, row, ex.getMessage());
 
                     BulkJobError error = new BulkJobError();
                     error.setBulkJob(job);
                     error.setRowNumber(row);
-                    error.setRawData(line);
+                    error.setRawData(trimmed);
                     error.setErrorMessage(ex.getMessage());
-
                     bulkJobErrorRepository.save(error);
                 }
             }
 
-            job.setStatus(BulkJobStatus.COMPLETED);
+            job.setStatus(failed == 0
+                    ? BulkJobStatus.COMPLETED
+                    : BulkJobStatus.FAILED);
+
             job.setTotalRecords(total);
             job.setSuccessfulRecords(success);
             job.setFailedRecords(failed);
+            job.setCompletedAt(java.time.LocalDateTime.now());
+
+            log.info("BulkJob {} completed — total:{} success:{} failed:{}",
+                    jobId, total, success, failed);
 
         } catch (Exception e) {
-
+            log.error("BulkJob {} crashed: {}", jobId, e.getMessage(), e);
             job.setStatus(BulkJobStatus.FAILED);
             job.setErrorMessage(e.getMessage());
         }

@@ -1,4 +1,5 @@
 package com.aryan.springboot.leavemanagement.service;
+
 import com.aryan.springboot.leavemanagement.entity.BulkJob;
 import com.aryan.springboot.leavemanagement.entity.Employee;
 import com.aryan.springboot.leavemanagement.entity.enums.BulkJobEntity;
@@ -6,7 +7,6 @@ import com.aryan.springboot.leavemanagement.entity.enums.BulkJobStatus;
 import com.aryan.springboot.leavemanagement.entity.enums.BulkJobType;
 import com.aryan.springboot.leavemanagement.repository.BulkJobRepository;
 import com.aryan.springboot.leavemanagement.repository.UserRepository;
-import com.aryan.springboot.leavemanagement.service.LeaveBalanceImportService;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -33,6 +33,13 @@ public class LeaveBalanceImportServiceImpl implements LeaveBalanceImportService 
                 .findByEmailWithAuthorities(requestedByEmail)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
+        byte[] fileBytes;
+        try {
+            fileBytes = file.getBytes();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to read uploaded file: " + e.getMessage());
+        }
+
         BulkJob job = new BulkJob();
         job.setType(BulkJobType.IMPORT);
         job.setEntity(BulkJobEntity.LEAVE_BALANCE);
@@ -42,7 +49,8 @@ public class LeaveBalanceImportServiceImpl implements LeaveBalanceImportService 
 
         BulkJob saved = bulkJobRepository.save(job);
 
-        importProcessor.process(saved.getId(), file); // async worker
+        importProcessor.process(saved.getId(), fileBytes);
+
         return saved.getId();
     }
 }

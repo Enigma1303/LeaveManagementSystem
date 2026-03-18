@@ -3,6 +3,7 @@ package com.aryan.springboot.leavemanagement.service;
 import com.aryan.springboot.leavemanagement.entity.LeaveBalance;
 import com.aryan.springboot.leavemanagement.repository.LeaveBalanceRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -15,6 +16,7 @@ public class LeaveBalanceExportService {
         this.leaveBalanceRepository = leaveBalanceRepository;
     }
 
+    @Transactional(readOnly = true)
     public String exportLeaveBalancesToCsv() {
 
         List<LeaveBalance> balances = leaveBalanceRepository.findAll();
